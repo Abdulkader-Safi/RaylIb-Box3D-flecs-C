@@ -1,35 +1,33 @@
+// Entry point: open a window, run the loop, tear everything down.
+// All the game lives in src/core/game.c.
+#include "core/config.h"
+#include "core/game.h"
 #include "raylib.h"
 
-#define RAYGUI_IMPLEMENTATION
-#define RAYGUI_SUPPORT_ICONS // Optional: enable icons
-#include "raygui.h"
+#include <stdlib.h>
 
 int main(void) {
-  InitWindow(640, 360, "raygui - controls test suite");
+  SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
+  InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, WINDOW_TITLE);
   SetTargetFPS(60);
+  SetExitKey(KEY_ESCAPE);
 
-  bool showMessageBox = false;
+  // The Game struct holds the entity pools, so it goes on the heap rather than
+  // the stack.
+  Game *game = malloc(sizeof(Game));
+  if (game == NULL) {
+    CloseWindow();
+    return 1;
+  }
+  GameInit(game);
 
   while (!WindowShouldClose()) {
-    BeginDrawing();
-    ClearBackground(GetColor(GuiGetStyle(DEFAULT, BACKGROUND_COLOR)));
-
-    if (GuiButton((Rectangle){24, 24, 120, 30}, "#191#Show Message")) {
-      showMessageBox = true;
-    }
-
-    if (showMessageBox) {
-      int result =
-          GuiMessageBox((Rectangle){85, 70, 250, 100}, "#191#Message Box",
-                        "Hi! This is a message!", "Nice;Cool");
-
-      if (result >= 0)
-        showMessageBox = false;
-    }
-
-    EndDrawing();
+    GameUpdate(game, GetFrameTime());
+    GameDraw(game);
   }
 
+  GameShutdown(game);
+  free(game);
   CloseWindow();
   return 0;
 }
