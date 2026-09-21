@@ -1,8 +1,8 @@
 // Levels are drawn as text and built into entities at load time.
 //
 // A grid of characters is the fastest thing to author and to read back, and
-// keeping the maps in C means the web build has no data files to fetch before
-// it can start.
+// keeping the maps in C means there are no data files to ship beside the
+// binary or to keep in step with it.
 //
 //   #  wall            .  floor           (space) outside the level
 //   o  low cover       S  start           X  exit

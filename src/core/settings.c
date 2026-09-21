@@ -25,14 +25,6 @@ Resolution SettingsResolutionAt(int index) {
   return RESOLUTIONS[index];
 }
 
-bool SettingsWindowIsAdjustable(void) {
-#if defined(__EMSCRIPTEN__)
-  return false;
-#else
-  return true;
-#endif
-}
-
 void SettingsRegister(ecs_world_t *world) {
   ECS_COMPONENT_DEFINE(world, Settings);
   ecs_singleton_set(world, Settings, {.resolutionIndex = 0, .fullscreen = false});
@@ -41,7 +33,7 @@ void SettingsRegister(ecs_world_t *world) {
 void SettingsApplyResolution(ecs_world_t *world, int index) {
   Settings *settings = ecs_singleton_get_mut(world, Settings);
   settings->resolutionIndex = index;
-  if (!SettingsWindowIsAdjustable() || settings->fullscreen) {
+  if (settings->fullscreen) {
     return;
   }
 
@@ -55,10 +47,6 @@ void SettingsApplyResolution(ecs_world_t *world, int index) {
 
 void SettingsToggleFullscreen(ecs_world_t *world) {
   Settings *settings = ecs_singleton_get_mut(world, Settings);
-  if (!SettingsWindowIsAdjustable()) {
-    return;
-  }
-
   settings->fullscreen = !settings->fullscreen;
   // Borderless rather than exclusive fullscreen: it switches instantly and
   // alt-tabs without the display mode changing under you.
@@ -69,9 +57,6 @@ void SettingsToggleFullscreen(ecs_world_t *world) {
 }
 
 void SettingsSave(const ecs_world_t *world) {
-  if (!SettingsWindowIsAdjustable()) {
-    return;
-  }
   const Settings *settings = ecs_singleton_get(world, Settings);
   char buffer[128];
   snprintf(buffer, sizeof(buffer), "resolution %d\nfullscreen %d\n", settings->resolutionIndex,
@@ -80,7 +65,7 @@ void SettingsSave(const ecs_world_t *world) {
 }
 
 void SettingsLoad(ecs_world_t *world) {
-  if (!SettingsWindowIsAdjustable() || !FileExists(SETTINGS_FILE)) {
+  if (!FileExists(SETTINGS_FILE)) {
     return;
   }
 

@@ -33,12 +33,8 @@ Resolution SettingsResolutionAt(int index);
 void SettingsApplyResolution(ecs_world_t *world, int index);
 void SettingsToggleFullscreen(ecs_world_t *world);
 
-// Kept on disk between runs on desktop. The web build has nowhere durable to
-// write, so there it is a no-op and the defaults come back each visit.
+// Kept on disk between runs, next to the binary.
 void SettingsSave(const ecs_world_t *world);
 void SettingsLoad(ecs_world_t *world);
-
-// False on the web, where the page and itch.io own the window.
-bool SettingsWindowIsAdjustable(void);
 
 #endif // CORE_SETTINGS_H

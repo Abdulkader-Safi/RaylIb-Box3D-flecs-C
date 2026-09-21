@@ -1,10 +1,6 @@
 # Build output (CMake + FetchContent downloads the dependencies here)
 build/
-build-web/
 cmake-build-*/
-
-# Packed web export
-dist/
 
 # Written next to the binary when the player changes a setting
 settings.txt

@@ -54,15 +54,9 @@ static void DrawSettings(ecs_world_t *world, const GameState *state) {
   GfxDrawTextCentered("SETTINGS", 140, 56, RAYWHITE);
 
   int y = GfxScreenHeight() / 2 - ROW_HEIGHT;
-  if (SettingsWindowIsAdjustable()) {
-    DrawMenuRow(GfxFormat("Resolution    < %s >", resolution.label), 0, state->menuIndex, y);
-    DrawMenuRow(GfxFormat("Fullscreen    < %s >", settings->fullscreen ? "on" : "off"), 1,
-                state->menuIndex, y + ROW_HEIGHT);
-  } else {
-    // In a browser the page owns the window, so these would be lying.
-    DrawMenuRow("Resolution    set by the page", 0, state->menuIndex, y);
-    DrawMenuRow("Fullscreen    use the browser", 1, state->menuIndex, y + ROW_HEIGHT);
-  }
+  DrawMenuRow(GfxFormat("Resolution    < %s >", resolution.label), 0, state->menuIndex, y);
+  DrawMenuRow(GfxFormat("Fullscreen    < %s >", settings->fullscreen ? "on" : "off"), 1,
+              state->menuIndex, y + ROW_HEIGHT);
   DrawMenuRow("Back", 2, state->menuIndex, y + ROW_HEIGHT * 2);
 
   GfxDrawTextCentered("A and D to change   .   Escape to go back", GfxScreenHeight() - 70, 18,

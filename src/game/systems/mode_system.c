@@ -44,7 +44,7 @@ static void ApplyTitleChoice(ecs_world_t *world, GameState *state) {
   }
 }
 
-static void ApplyPauseChoice(ecs_world_t *world, GameState *state) {
+static void ApplyPauseChoice(GameState *state) {
   switch (state->menuIndex) {
   case 0: state->mode = MODE_PLAYING; break;
   case 1: EnterSettings(state); break;
@@ -103,7 +103,7 @@ static void UpdateMode(ecs_iter_t *it, GameState *state) {
     break;
 
   case MODE_PAUSED:
-    if (input->confirm) ApplyPauseChoice(it->world, state);
+    if (input->confirm) ApplyPauseChoice(state);
     if (input->pause) state->mode = MODE_PLAYING;
     break;
 

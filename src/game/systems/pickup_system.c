@@ -5,8 +5,8 @@
 #include "game/config.h"
 #include "game/systems/systems.h"
 
-static void CollectOne(ecs_world_t *world, const Pickup *pickup, GameState *state,
-                       Health *playerHealth, Powerups *powerups) {
+static void CollectOne(const Pickup *pickup, GameState *state, Health *playerHealth,
+                       Powerups *powerups) {
   switch (pickup->kind) {
   case PICKUP_COIN:
     state->coins += pickup->amount;
@@ -55,7 +55,7 @@ static void PickupSystem(ecs_iter_t *it) {
     float distance = Vec3Length(toPlayer);
 
     if (distance <= PICKUP_COLLECT_RANGE) {
-      CollectOne(it->world, pickups + i, state, playerHealth, powerups);
+      CollectOne(pickups + i, state, playerHealth, powerups);
       ecs_delete(it->world, it->entities[i]);
       continue;
     }
