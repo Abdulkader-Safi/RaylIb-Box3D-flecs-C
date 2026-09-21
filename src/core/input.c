@@ -1,73 +1,76 @@
 #include "core/input.h"
 
-#include "raymath.h"
+#include "core/gfx.h"
+#include "core/phases.h"
+#include "raylib.h"
 
-#define GAMEPAD 0
+#define PAD 0
 #define STICK_DEADZONE 0.2f
 
-// Drops stick noise around centre and keeps the remaining range full length.
-static Vector2 ApplyDeadzone(Vector2 stick) {
-  float length = Vector2Length(stick);
+// Drops stick noise around centre and stretches what is left back to full
+// range, so a barely pushed stick reads as zero and a fully pushed one as one.
+static Vec2 ApplyDeadzone(Vec2 stick) {
+  float length = Vec2Length(stick);
   if (length < STICK_DEADZONE) {
-    return (Vector2){0.0f, 0.0f};
+    return VEC2_ZERO;
   }
   float scaled = (length - STICK_DEADZONE) / (1.0f - STICK_DEADZONE);
-  return Vector2Scale(Vector2Scale(stick, 1.0f / length), fminf(scaled, 1.0f));
+  return Vec2Scale(Vec2Scale(stick, 1.0f / length), MathClamp(scaled, 0.0f, 1.0f));
 }
 
-static Vector2 ReadMove(void) {
-  Vector2 move = {0.0f, 0.0f};
+static Vec2 ReadMove(void) {
+  Vec2 move = VEC2_ZERO;
   if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) move.x += 1.0f;
   if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT)) move.x -= 1.0f;
   if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP)) move.y += 1.0f;
   if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN)) move.y -= 1.0f;
 
   if (move.x != 0.0f || move.y != 0.0f) {
-    return Vector2Normalize(move);
+    return Vec2Normalize(move);
   }
-
-  if (IsGamepadAvailable(GAMEPAD)) {
-    Vector2 stick = {GetGamepadAxisMovement(GAMEPAD, GAMEPAD_AXIS_LEFT_X),
-                     -GetGamepadAxisMovement(GAMEPAD, GAMEPAD_AXIS_LEFT_Y)};
-    return ApplyDeadzone(stick);
+  if (IsGamepadAvailable(PAD)) {
+    return ApplyDeadzone(Vec2Make(GetGamepadAxisMovement(PAD, GAMEPAD_AXIS_LEFT_X),
+                                  -GetGamepadAxisMovement(PAD, GAMEPAD_AXIS_LEFT_Y)));
   }
   return move;
 }
 
-// Where the mouse ray crosses the horizontal plane the player stands on. That
-// plane, not the ground, keeps the crosshair level with the muzzle.
-static Vector3 MouseAimPoint(Camera3D camera, Vector3 playerPosition) {
-  Ray ray = GetScreenToWorldRay(GetMousePosition(), camera);
-  if (fabsf(ray.direction.y) < 1e-4f) {
-    return Vector3Add(playerPosition, (Vector3){0.0f, 0.0f, 1.0f});
+static void InputPollSystem(ecs_iter_t *it) {
+  Input *input = ecs_singleton_ensure(it->world, Input);
+
+  input->move = ReadMove();
+  input->restart = IsKeyPressed(KEY_R);
+  input->quit = WindowShouldClose();
+  input->aimIsStick = false;
+  input->aimStick = VEC2_ZERO;
+
+  if (IsGamepadAvailable(PAD)) {
+    Vec2 stick = ApplyDeadzone(Vec2Make(GetGamepadAxisMovement(PAD, GAMEPAD_AXIS_RIGHT_X),
+                                        -GetGamepadAxisMovement(PAD, GAMEPAD_AXIS_RIGHT_Y)));
+    if (stick.x != 0.0f || stick.y != 0.0f) {
+      input->aimIsStick = true;
+      input->aimStick = stick;
+    }
+    input->restart = input->restart || IsGamepadButtonPressed(PAD, GAMEPAD_BUTTON_MIDDLE_RIGHT);
   }
-  float distance = (playerPosition.y - ray.position.y) / ray.direction.y;
-  if (distance < 0.0f) {
-    return Vector3Add(playerPosition, (Vector3){0.0f, 0.0f, 1.0f});
-  }
-  return Vector3Add(ray.position, Vector3Scale(ray.direction, distance));
+
+  input->aimScreen = GetMousePosition();
+  // Pushing the right stick is the shoot gesture on a pad, the way twin stick
+  // games have always done it.
+  input->fire = input->aimIsStick || IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_SPACE);
 }
 
-InputState InputRead(Camera3D camera, Vector3 playerPosition) {
-  InputState input = {0};
-  input.move = ReadMove();
-  input.restart = IsKeyPressed(KEY_R);
+void InputRegister(ecs_world_t *world) {
+  ecs_singleton_set(world, Input, {0});
+  ECS_SYSTEM(world, InputPollSystem, PhaseInput, 0);
+}
 
-  bool usingGamepad = false;
-  if (IsGamepadAvailable(GAMEPAD)) {
-    Vector2 aimStick = ApplyDeadzone((Vector2){GetGamepadAxisMovement(GAMEPAD, GAMEPAD_AXIS_RIGHT_X),
-                                               -GetGamepadAxisMovement(GAMEPAD, GAMEPAD_AXIS_RIGHT_Y)});
-    if (aimStick.x != 0.0f || aimStick.y != 0.0f) {
-      usingGamepad = true;
-      input.aimPoint = Vector3Add(playerPosition, (Vector3){aimStick.x * 10.0f, 0.0f, -aimStick.y * 10.0f});
-      input.firing = true; // Pushing the right stick is the shoot gesture.
-    }
-    input.restart = input.restart || IsGamepadButtonPressed(GAMEPAD, GAMEPAD_BUTTON_MIDDLE_RIGHT);
+Vec3 InputAimPoint(ecs_world_t *world, Vec3 origin) {
+  const Input *input = ecs_singleton_get(world, Input);
+  if (input->aimIsStick) {
+    // A stick gives a direction, so the point is placed a fixed distance out
+    // along it. Anything past the player reads the same once normalised.
+    return Vec3Add(origin, Vec3Make(input->aimStick.x * 10.0f, 0.0f, -input->aimStick.y * 10.0f));
   }
-
-  if (!usingGamepad) {
-    input.aimPoint = MouseAimPoint(camera, playerPosition);
-    input.firing = IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_SPACE);
-  }
-  return input;
+  return GfxScreenPointOnPlane(world, input->aimScreen, origin.y);
 }

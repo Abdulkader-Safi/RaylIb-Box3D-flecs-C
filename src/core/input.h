@@ -1,19 +1,16 @@
-// Turns keyboard, mouse and gamepad into one frame of intent. Nothing else in
-// the game asks raylib what a key is doing.
-#ifndef INPUT_H
-#define INPUT_H
+// Keyboard, mouse and gamepad folded into the Input singleton once per frame.
+// Game systems read Input and never ask raylib what a key is doing.
+#ifndef CORE_INPUT_H
+#define CORE_INPUT_H
 
-#include "raylib.h"
+#include "core/components.h"
+#include "flecs.h"
 
-#include <stdbool.h>
+void InputRegister(ecs_world_t *world);
 
-typedef struct InputState {
-  Vector2 move;     // Left stick: x is right, y is forward. Length <= 1.
-  Vector3 aimPoint; // Right stick or mouse, resolved onto the player's plane.
-  bool firing;
-  bool restart;
-} InputState;
+// Where the player is aiming, as a world point on the plane through `origin`.
+// Works the same whether the aim came from a mouse or a stick, which is the
+// only reason a game system can ignore the difference.
+Vec3 InputAimPoint(ecs_world_t *world, Vec3 origin);
 
-InputState InputRead(Camera3D camera, Vector3 playerPosition);
-
-#endif // INPUT_H
+#endif // CORE_INPUT_H
