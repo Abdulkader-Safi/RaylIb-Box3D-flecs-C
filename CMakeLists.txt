@@ -15,7 +15,16 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # --------------------------------------------------------------- dependencies
-if(APPLE)
+if(EMSCRIPTEN)
+  # raylib picks its backend from this, and it has to be set before raylib is
+  # brought in below. The browser supplies everything else, so no system
+  # libraries are linked.
+  set(PLATFORM Web CACHE STRING "raylib platform" FORCE)
+  set(PLATFORM_LIBS "")
+  # Box3D reaches for SSE2 on wasm through Emscripten's emulation headers. See
+  # the note below FetchContent for why the scalar path is the one we want.
+  set(BOX3D_DISABLE_SIMD ON CACHE BOOL "Box3D scalar math on the web" FORCE)
+elseif(APPLE)
   set(PLATFORM_LIBS "-framework OpenGL -framework Cocoa -framework IOKit -framework CoreVideo")
 elseif(WIN32)
   set(PLATFORM_LIBS winmm gdi32 opengl32)
@@ -48,6 +57,27 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(raylib box3d flecs)
+
+if(EMSCRIPTEN)
+  # Box3D compiles itself with -msimd128 -msse2 on Emscripten. From -O2 up,
+  # that walks LLVM's WebAssembly instruction selector into runaway recursion
+  # in isKnownNeverNaN and clang dies on shape.c (Emscripten 6.0.3, clang 23).
+  # -O0 is fine, and so is any level without the flags, which is what pins it
+  # on the vectoriser rather than on the optimiser.
+  #
+  # So the web build takes Box3D's scalar path, which needs two things: the
+  # BOX3D_DISABLE_SIMD definition set above, or it includes emmintrin.h and
+  # fails to compile without -msse2, and the flags removed here, because
+  # -msimd128 alone still lets the vectoriser rebuild the pattern that crashes.
+  #
+  # The game does not miss the SIMD: a few dozen bodies, not a few thousand.
+  # Worth retrying when Emscripten updates.
+  get_target_property(BOX3D_OPTIONS box3d COMPILE_OPTIONS)
+  if(BOX3D_OPTIONS)
+    list(REMOVE_ITEM BOX3D_OPTIONS -msimd128 -msse2)
+    set_target_properties(box3d PROPERTIES COMPILE_OPTIONS "${BOX3D_OPTIONS}")
+  endif()
+endif()
 
 # --------------------------------------------------------------------- sources
 # core is the framework: the only code that talks to raylib, raygui and Box3D.
@@ -101,9 +131,26 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
+# ------------------------------------------------------------------------- web
+if(EMSCRIPTEN)
+  # Emscripten emits a page plus the .js and .wasm that sit beside it.
+  set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html")
+  target_link_options(${PROJECT_NAME} PRIVATE
+      -sUSE_GLFW=3            # raylib talks to the canvas through GLFW.
+      -sALLOW_MEMORY_GROWTH=1 # flecs and Box3D size their pools as they go.
+      -sSTACK_SIZE=4194304    # The 64KB default is not enough for the solver.
+      -sEXIT_RUNTIME=0
+      --shell-file ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html
+  )
+  # Rebuild the page when the shell changes, which CMake cannot see by itself.
+  set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY
+      LINK_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/web/shell.html)
+endif()
+
 # ----------------------------------------------------------------------- tests
 # Headless check of the ECS wiring and the gameplay rules. It opens no window.
 # Build and run:  cmake --build build --target game_tests && ./build/bin/game_tests
+if(NOT EMSCRIPTEN)
 add_executable(game_tests EXCLUDE_FROM_ALL
     tests/test_gameplay.c
     ${CORE_SOURCES}
@@ -115,3 +162,4 @@ target_link_libraries(game_tests raylib box3d flecs_static ${PLATFORM_LIBS})
 set_target_properties(game_tests PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
+endif()

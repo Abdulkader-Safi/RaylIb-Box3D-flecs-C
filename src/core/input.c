@@ -40,7 +40,14 @@ static void InputPollSystem(ecs_iter_t *it) {
 
   input->move = ReadMove();
   input->restart = IsKeyPressed(KEY_R);
+#if !defined(__EMSCRIPTEN__)
   input->quit = WindowShouldClose();
+#else
+  // raylib's web backend implements WindowShouldClose with emscripten_sleep,
+  // which aborts unless the whole program is built with ASYNCIFY. A browser
+  // tab has no window to close either way, so on the web this flag is only
+  // ever raised by a game calling AppRequestQuit.
+#endif
   input->aimIsStick = false;
   input->aimStick = VEC2_ZERO;
 

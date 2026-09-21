@@ -27,12 +27,39 @@ raylib 5.5, Box3D v0.1.0 and flecs v4.1.6 are fetched by CMake on the first
 configure. You need CMake and a C compiler, nothing else.
 
 ```sh
-make          # configure, build, run
-make build    # build only
+make          # what each target does
+make build    # build the desktop game
+make run      # build and play it
 make test     # layer check, then the headless gameplay checks
-make check    # layer check on its own
+make web      # build for WebAssembly and pack dist/game-web.zip
+make serve    # build for web and serve it on localhost:8000
 make clean
 ```
+
+## Putting it on itch.io
+
+`make web` needs Emscripten on PATH (`brew install emscripten`, or an emsdk you
+have sourced). It produces `dist/game-web.zip` with `index.html` at the root,
+which is the shape itch.io wants.
+
+Upload that zip, tick "This file will be played in the browser", and set the
+viewport to 1280 x 720. Check it locally first with `make serve`: opening
+`index.html` off disk will not work, because browsers refuse to fetch the
+`.wasm` over `file://`.
+
+Three things about the web build are load-bearing, all commented where they
+live:
+
+- The browser owns the loop. `AppRun` hands one frame over through
+  `emscripten_set_main_loop` instead of running a `while`, because blocking
+  would freeze the page.
+- The canvas stays at its startup size, with no `FLAG_WINDOW_RESIZABLE`. If
+  raylib resizes the canvas itself, Emscripten's GLFW carries on scaling mouse
+  coordinates against the size it cached at startup, and aiming drifts away
+  from the cursor. The page scales the canvas with CSS instead, keeping its
+  16:9 shape so the pointer maps back by a plain scale.
+- Box3D builds with its scalar maths. Its own Emscripten flags crash LLVM's
+  WebAssembly instruction selector from `-O2` up.
 
 ## Layout
 

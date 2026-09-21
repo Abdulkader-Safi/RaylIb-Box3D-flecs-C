@@ -1,6 +1,10 @@
-# Build output (CMake + FetchContent downloads raylib here)
+# Build output (CMake + FetchContent downloads the dependencies here)
 build/
+build-web/
 cmake-build-*/
+
+# Packed web export
+dist/
 
 # Compiled objects, libraries, executables
 *.o
