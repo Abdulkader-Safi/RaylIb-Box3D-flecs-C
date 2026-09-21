@@ -1,0 +1,34 @@
+# Build output (CMake + FetchContent downloads raylib here)
+build/
+cmake-build-*/
+
+# Compiled objects, libraries, executables
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+game
+
+# CMake generated files (if ever configured in-source)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+compile_commands.json
+
+# Debug symbols
+*.dSYM/
+*.pdb
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*~
+
+# macOS
+.DS_Store
