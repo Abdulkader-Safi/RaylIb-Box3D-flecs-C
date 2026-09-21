@@ -11,7 +11,9 @@ cmake-build-*/
 *.dylib
 *.dll
 *.exe
-game
+# The built binaries, by path. A bare "game" here would also ignore src/game/.
+/build/bin/game
+/build/bin/game_tests
 
 # CMake generated files (if ever configured in-source)
 CMakeCache.txt
