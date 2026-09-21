@@ -6,6 +6,9 @@ cmake-build-*/
 # Packed web export
 dist/
 
+# Written next to the binary when the player changes a setting
+settings.txt
+
 # Compiled objects, libraries, executables
 *.o
 *.obj

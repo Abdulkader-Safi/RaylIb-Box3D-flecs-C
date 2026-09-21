@@ -83,6 +83,7 @@ endif()
 # core is the framework: the only code that talks to raylib, raygui and Box3D.
 set(CORE_SOURCES
     src/core/app.c
+    src/core/clock.c
     src/core/components.c
     src/core/gfx.c
     src/core/input.c
@@ -90,6 +91,7 @@ set(CORE_SOURCES
     src/core/math.c
     src/core/phases.c
     src/core/physics.c
+    src/core/settings.c
     src/core/system.c
 )
 
@@ -98,17 +100,22 @@ set(CORE_SOURCES
 set(GAME_SOURCES
     src/game/game.c
     src/game/components/components.c
+    src/game/levels/level_build.c
+    src/game/levels/level_data.c
     src/game/spawn/spawn.c
     src/game/systems/bite_system.c
     src/game/systems/camera_system.c
     src/game/systems/chase_system.c
     src/game/systems/combat_system.c
     src/game/systems/death_system.c
+    src/game/systems/door_system.c
+    src/game/systems/exit_system.c
     src/game/systems/hud_system.c
+    src/game/systems/mode_system.c
+    src/game/systems/pickup_system.c
     src/game/systems/player_system.c
     src/game/systems/render_system.c
-    src/game/systems/restart_system.c
-    src/game/systems/wave_system.c
+    src/game/systems/spawner_system.c
     src/game/systems/weapon_system.c
 )
 

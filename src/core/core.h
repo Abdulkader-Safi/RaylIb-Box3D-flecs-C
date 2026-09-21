@@ -4,6 +4,7 @@
 #define CORE_H
 
 #include "core/app.h"
+#include "core/clock.h"
 #include "core/components.h"
 #include "core/gfx.h"
 #include "core/input.h"
@@ -11,6 +12,7 @@
 #include "core/math.h"
 #include "core/phases.h"
 #include "core/physics.h"
+#include "core/settings.h"
 #include "core/system.h"
 
 #endif // CORE_H

@@ -11,9 +11,8 @@
 // the work immediately keeps a spawned entity whole the moment it exists.
 //
 // ecs_defer_suspend asserts unless something is actually being deferred, so
-// the state is checked first. That also makes these nest: an inner spawn
-// called from SpawnFreshRun sees deferring already off and leaves it alone.
-static bool SpawnBegin(ecs_world_t *world) {
+// the state is checked first. That also makes these nest.
+bool SpawnBegin(ecs_world_t *world) {
   if (!ecs_is_deferred(world)) {
     return false;
   }
@@ -21,7 +20,7 @@ static bool SpawnBegin(ecs_world_t *world) {
   return true;
 }
 
-static void SpawnEnd(ecs_world_t *world, bool suspended) {
+void SpawnEnd(ecs_world_t *world, bool suspended) {
   if (suspended) {
     ecs_defer_resume(world);
   }
@@ -39,54 +38,53 @@ static ecs_entity_t SpawnPhysical(ecs_world_t *world, const BodyDesc *desc) {
   return entity;
 }
 
-static void SpawnWall(ecs_world_t *world, Vec3 center, Vec3 halfExtents) {
-  BodyDesc desc = {
-      .kind = BODY_STATIC_BOX,
-      .position = center,
-      .halfExtents = halfExtents,
-      .friction = 0.7f,
-      .category = CATEGORY_ARENA,
-      .mask = CATEGORY_PLAYER | CATEGORY_ENEMY | CATEGORY_BULLET,
-  };
-  ecs_entity_t wall = SpawnPhysical(world, &desc);
-  ecs_set(world, wall, BoxVisual,
-          {.size = Vec3Scale(halfExtents, 2.0f), .color = COLOR_WALL, .wireframe = true});
+// Something you can see but never touch. Floors are drawn this way; a single
+// slab underneath does the actual holding up.
+static ecs_entity_t SpawnDecoration(ecs_world_t *world, Vec3 centre, Vec3 size, Color color) {
+  ecs_entity_t entity = ecs_new(world);
+  ecs_add_id(world, entity, Spawned);
+  ecs_set(world, entity, Position, {centre});
+  ecs_set(world, entity, BoxVisual, {.size = size, .color = color});
+  return entity;
 }
 
-void SpawnArena(ecs_world_t *world) {
+ecs_entity_t SpawnBlock(ecs_world_t *world, Vec3 centre, Vec3 size, Color color, bool solid) {
   bool suspended = SpawnBegin(world);
-  const float half = ARENA_HALF_EXTENT;
-  const float floorHalf = ARENA_FLOOR_HALF_THICKNESS;
+  ecs_entity_t block;
 
-  // The floor's top surface sits at y = 0, so every spawn height in the game is
-  // measured from zero.
-  BodyDesc floorDesc = {
+  if (solid) {
+    BodyDesc desc = {
+        .kind = BODY_STATIC_BOX,
+        .position = centre,
+        .halfExtents = Vec3Scale(size, 0.5f),
+        .friction = 0.7f,
+        .category = CATEGORY_ARENA,
+        .mask = CATEGORY_PLAYER | CATEGORY_ENEMY | CATEGORY_BULLET,
+    };
+    block = SpawnPhysical(world, &desc);
+    ecs_add_id(world, block, Wall);
+    ecs_set(world, block, BoxVisual, {.size = size, .color = color, .wireframe = true});
+  } else {
+    block = SpawnDecoration(world, centre, size, color);
+  }
+
+  SpawnEnd(world, suspended);
+  return block;
+}
+
+ecs_entity_t SpawnFloorSlab(ecs_world_t *world, Vec3 centre, Vec3 size) {
+  bool suspended = SpawnBegin(world);
+  BodyDesc desc = {
       .kind = BODY_STATIC_BOX,
-      .position = Vec3Make(0.0f, -floorHalf, 0.0f),
-      .halfExtents = Vec3Make(half, floorHalf, half),
+      .position = centre,
+      .halfExtents = Vec3Scale(size, 0.5f),
       .friction = 0.7f,
       .category = CATEGORY_ARENA,
       .mask = CATEGORY_PLAYER | CATEGORY_ENEMY | CATEGORY_BULLET,
   };
-  ecs_entity_t floor = SpawnPhysical(world, &floorDesc);
-  // Position belongs to the physics body and is rewritten every frame, so the
-  // floor is sunk by drawing it thinner rather than by moving it. It keeps the
-  // same centre, so only the top face drops, which is the face the grid needs
-  // to clear.
-  ecs_set(world, floor, BoxVisual,
-          {.size = Vec3Make(half * 2.0f, floorHalf * 2.0f - ARENA_FLOOR_VISUAL_SINK * 2.0f,
-                            half * 2.0f),
-           .color = COLOR_FLOOR});
-
-  const float wallY = ARENA_WALL_HEIGHT * 0.5f;
-  const float offset = half + ARENA_WALL_THICKNESS * 0.5f;
-  const float thin = ARENA_WALL_THICKNESS * 0.5f;
-
-  SpawnWall(world, Vec3Make(0.0f, wallY, -offset), Vec3Make(half, wallY, thin));
-  SpawnWall(world, Vec3Make(0.0f, wallY, offset), Vec3Make(half, wallY, thin));
-  SpawnWall(world, Vec3Make(-offset, wallY, 0.0f), Vec3Make(thin, wallY, half));
-  SpawnWall(world, Vec3Make(offset, wallY, 0.0f), Vec3Make(thin, wallY, half));
+  ecs_entity_t slab = SpawnPhysical(world, &desc);
   SpawnEnd(world, suspended);
+  return slab;
 }
 
 ecs_entity_t SpawnPlayer(ecs_world_t *world, Vec3 position) {
@@ -107,6 +105,7 @@ ecs_entity_t SpawnPlayer(ecs_world_t *world, Vec3 position) {
   ecs_set(world, player, Health, {PLAYER_MAX_HEALTH, PLAYER_MAX_HEALTH});
   ecs_set(world, player, MoveSpeed, {PLAYER_SPEED});
   ecs_set(world, player, Aim, {Vec3Make(0.0f, 0.0f, 1.0f)});
+  ecs_set(world, player, Powerups, {0});
   ecs_set(world, player, Weapon,
           {
               .interval = WEAPON_INTERVAL,
@@ -119,17 +118,45 @@ ecs_entity_t SpawnPlayer(ecs_world_t *world, Vec3 position) {
           });
   ecs_set(world, player, CapsuleVisual,
           {.radius = PLAYER_RADIUS, .halfHeight = PLAYER_HALF_HEIGHT, .color = COLOR_PLAYER});
+
   SpawnEnd(world, suspended);
   return player;
 }
 
-ecs_entity_t SpawnEnemy(ecs_world_t *world, Vec3 position) {
+// Everything that separates one enemy from another, in one table.
+typedef struct TierStats {
+  float radius;
+  int health;
+  float speed;
+  int damage;
+  int coins;
+  Color color;
+} TierStats;
+
+static TierStats StatsFor(EnemyTier tier) {
+  switch (tier) {
+  case ENEMY_LIGHT:
+    return (TierStats){ENEMY_LIGHT_RADIUS, ENEMY_LIGHT_HEALTH, ENEMY_LIGHT_SPEED,
+                       ENEMY_LIGHT_DAMAGE, ENEMY_LIGHT_COINS, COLOR_ENEMY_LIGHT};
+  case ENEMY_HEAVY:
+    return (TierStats){ENEMY_HEAVY_RADIUS, ENEMY_HEAVY_HEALTH, ENEMY_HEAVY_SPEED,
+                       ENEMY_HEAVY_DAMAGE, ENEMY_HEAVY_COINS, COLOR_ENEMY_HEAVY};
+  case ENEMY_MEDIUM:
+  default:
+    return (TierStats){ENEMY_MEDIUM_RADIUS, ENEMY_MEDIUM_HEALTH, ENEMY_MEDIUM_SPEED,
+                       ENEMY_MEDIUM_DAMAGE, ENEMY_MEDIUM_COINS, COLOR_ENEMY_MEDIUM};
+  }
+}
+
+ecs_entity_t SpawnEnemy(ecs_world_t *world, Vec3 position, EnemyTier tier) {
   bool suspended = SpawnBegin(world);
+  TierStats stats = StatsFor(tier);
+
   BodyDesc desc = {
       .kind = BODY_CHARACTER,
       .position = position,
-      .radius = ENEMY_RADIUS,
-      .halfHeight = ENEMY_HALF_HEIGHT,
+      .radius = stats.radius,
+      .halfHeight = stats.radius,
       .friction = 0.15f,
       .category = CATEGORY_ENEMY,
       .mask = CATEGORY_ARENA | CATEGORY_PLAYER | CATEGORY_ENEMY | CATEGORY_BULLET,
@@ -137,17 +164,19 @@ ecs_entity_t SpawnEnemy(ecs_world_t *world, Vec3 position) {
   ecs_entity_t enemy = SpawnPhysical(world, &desc);
 
   ecs_add_id(world, enemy, Enemy);
-  ecs_set(world, enemy, Health, {ENEMY_MAX_HEALTH, ENEMY_MAX_HEALTH});
-  ecs_set(world, enemy, MoveSpeed, {ENEMY_SPEED});
+  ecs_set(world, enemy, Health, {stats.health, stats.health});
+  ecs_set(world, enemy, MoveSpeed, {stats.speed});
+  ecs_set(world, enemy, Loot, {.tier = tier, .coins = stats.coins, .score = SCORE_PER_KILL});
   ecs_set(world, enemy, Bite,
           {
               .interval = ENEMY_BITE_INTERVAL,
               .cooldown = 0.0f,
-              .damage = ENEMY_BITE_DAMAGE,
-              .range = PLAYER_RADIUS + ENEMY_RADIUS + 0.35f,
+              .damage = stats.damage,
+              .range = PLAYER_RADIUS + stats.radius + 0.35f,
           });
   ecs_set(world, enemy, CapsuleVisual,
-          {.radius = ENEMY_RADIUS, .halfHeight = ENEMY_HALF_HEIGHT, .color = COLOR_ENEMY});
+          {.radius = stats.radius, .halfHeight = stats.radius, .color = stats.color});
+
   SpawnEnd(world, suspended);
   return enemy;
 }
@@ -169,29 +198,94 @@ ecs_entity_t SpawnBullet(ecs_world_t *world, Vec3 origin, Vec3 direction, const 
   ecs_set(world, bullet, Damage, {weapon->damage, weapon->knockback});
   ecs_set(world, bullet, Lifetime, {weapon->bulletLifetime});
   ecs_set(world, bullet, SphereVisual, {.radius = weapon->bulletRadius, .color = COLOR_BULLET});
+
   SpawnEnd(world, suspended);
   return bullet;
 }
 
-Vec3 SpawnPointOnArenaEdge(float height) {
-  float radius = ARENA_HALF_EXTENT - ENEMY_SPAWN_MARGIN;
-  float angle = RandomAngle();
-  return Vec3Make(cosf(angle) * radius, height, sinf(angle) * radius);
+// The exit is a marker, not an obstacle: no body, just somewhere to stand.
+ecs_entity_t SpawnExit(ecs_world_t *world, Vec3 position) {
+  bool suspended = SpawnBegin(world);
+  ecs_entity_t exit = ecs_new(world);
+  ecs_add_id(world, exit, Spawned);
+  ecs_add_id(world, exit, Exit);
+  ecs_set(world, exit, Position, {position});
+  ecs_set(world, exit, BoxVisual,
+          {.size = Vec3Make(TILE_SIZE * 0.9f, 0.1f, TILE_SIZE * 0.9f), .color = COLOR_EXIT});
+  SpawnEnd(world, suspended);
+  return exit;
 }
 
-void SpawnFreshRun(ecs_world_t *world) {
-  // Deferring matters twice as much here: a queued delete_with would run after
-  // the new arena and player exist and wipe those out too.
+// A solid block until the player is carrying a keycard, at which point the
+// door system deletes it.
+ecs_entity_t SpawnDoor(ecs_world_t *world, Vec3 position) {
   bool suspended = SpawnBegin(world);
+  Vec3 size = Vec3Make(TILE_SIZE, ARENA_WALL_HEIGHT, TILE_SIZE);
+  BodyDesc desc = {
+      .kind = BODY_STATIC_BOX,
+      .position = position,
+      .halfExtents = Vec3Scale(size, 0.5f),
+      .friction = 0.7f,
+      .category = CATEGORY_ARENA,
+      .mask = CATEGORY_PLAYER | CATEGORY_ENEMY | CATEGORY_BULLET,
+  };
+  ecs_entity_t door = SpawnPhysical(world, &desc);
+  ecs_set(world, door, Door, {.locked = true});
+  ecs_set(world, door, BoxVisual, {.size = size, .color = COLOR_DOOR, .wireframe = true});
+  SpawnEnd(world, suspended);
+  return door;
+}
 
-  // Every entity the game creates carries Spawned, so one call clears the board
-  // and the PhysicsBody destructor takes each rigid body down with it.
-  ecs_delete_with(world, Spawned);
+ecs_entity_t SpawnSpawner(ecs_world_t *world, Vec3 position, EnemyTier tier) {
+  bool suspended = SpawnBegin(world);
+  ecs_entity_t spawner = ecs_new(world);
+  ecs_add_id(world, spawner, Spawned);
+  ecs_set(world, spawner, Position, {position});
+  ecs_set(world, spawner, Spawner,
+          {
+              .tier = tier,
+              .interval = SPAWNER_INTERVAL,
+              // Staggered, so a level with four spawners does not empty them
+              // all into the room on the same frame.
+              .cooldown = RandomFloat(0.5f, SPAWNER_INTERVAL),
+              .maxAlive = SPAWNER_MAX_ALIVE,
+          });
+  ecs_set(world, spawner, BoxVisual,
+          {.size = Vec3Make(1.0f, 0.2f, 1.0f), .color = COLOR_SPAWNER, .wireframe = true});
+  SpawnEnd(world, suspended);
+  return spawner;
+}
 
-  ecs_singleton_set(world, GameState, {.score = 0, .wave = 0, .waveBreak = 0.0f, .over = false});
+static Color PickupColor(PickupKind kind) {
+  switch (kind) {
+  case PICKUP_HEALTH: return COLOR_HEALTH;
+  case PICKUP_RAPID_FIRE: return COLOR_RAPID;
+  case PICKUP_SHIELD: return COLOR_SHIELD;
+  case PICKUP_KEYCARD: return COLOR_KEYCARD;
+  case PICKUP_COIN:
+  default: return COLOR_COIN;
+  }
+}
 
-  SpawnArena(world);
-  SpawnPlayer(world, Vec3Make(0.0f, PLAYER_HALF_HEIGHT + PLAYER_RADIUS + 0.05f, 0.0f));
+ecs_entity_t SpawnPickup(ecs_world_t *world, Vec3 position, PickupKind kind, int amount) {
+  bool suspended = SpawnBegin(world);
+  ecs_entity_t pickup = ecs_new(world);
+  ecs_add_id(world, pickup, Spawned);
+  ecs_set(world, pickup, Position, {position});
+  ecs_set(world, pickup, Pickup, {.kind = kind, .amount = amount});
+
+  // Pickups have no rigid body. They are drawn where they are and collected by
+  // distance, which keeps them out of the way of the crowd shoving about.
+  if (kind == PICKUP_COIN) {
+    ecs_set(world, pickup, SphereVisual, {.radius = PICKUP_RADIUS, .color = COLOR_COIN});
+  } else {
+    ecs_set(world, pickup, BoxVisual,
+            {.size = Vec3Make(0.6f, 0.6f, 0.6f), .color = PickupColor(kind), .wireframe = true});
+  }
+  if (kind == PICKUP_KEYCARD) {
+    ecs_add_id(world, pickup, Keycard);
+  }
 
   SpawnEnd(world, suspended);
+  return pickup;
 }

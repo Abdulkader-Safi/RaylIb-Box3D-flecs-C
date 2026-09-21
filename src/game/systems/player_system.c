@@ -27,6 +27,21 @@ static void PlayerTrackSystem(ecs_iter_t *it) {
   tracker->maxHealth = health[0].max;
 }
 
+// Powerups are just timers. They run down here and everything that cares
+// reads the remaining seconds rather than being told when one ends.
+static void PowerupTimerSystem(ecs_iter_t *it) {
+  Powerups *powerups = ecs_field(it, Powerups, 0);
+  const GameState *state = ecs_singleton_get(it->world, GameState);
+  if (state->mode != MODE_PLAYING) {
+    return;
+  }
+
+  for (int i = 0; i < it->count; ++i) {
+    if (powerups[i].rapidFire > 0.0f) powerups[i].rapidFire -= it->delta_time;
+    if (powerups[i].shield > 0.0f) powerups[i].shield -= it->delta_time;
+  }
+}
+
 static void PlayerControlSystem(ecs_iter_t *it) {
   const Position *positions = ecs_field(it, Position, 0);
   const PhysicsBody *bodies = ecs_field(it, PhysicsBody, 1);
@@ -39,7 +54,7 @@ static void PlayerControlSystem(ecs_iter_t *it) {
   for (int i = 0; i < it->count; ++i) {
     // Screen up is negative Z, so pushing forward moves that way.
     Vec3 velocity = VEC3_ZERO;
-    if (!state->over) {
+    if (state->mode == MODE_PLAYING) {
       velocity = Vec3Make(input->move.x * speeds[i].value, 0.0f, -input->move.y * speeds[i].value);
     }
     PhysicsDriveHorizontal(bodies[i], velocity);
@@ -60,4 +75,5 @@ void PlayerSystemRegister(ecs_world_t *world) {
   ECS_SYSTEM(world, PlayerTrackSystem, PhaseTrack, [in] Position, [in] Health, Player);
   ECS_SYSTEM(world, PlayerControlSystem, PhaseLogic, [in] Position, [in] PhysicsBody,
              [in] MoveSpeed, Aim, Player);
+  ECS_SYSTEM(world, PowerupTimerSystem, PhaseLogic, Powerups, Player);
 }

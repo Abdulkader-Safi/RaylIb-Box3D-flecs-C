@@ -1,11 +1,13 @@
 #include "core/app.h"
 
+#include "core/clock.h"
 #include "core/components.h"
 #include "core/gfx.h"
 #include "core/input.h"
 #include "core/lifetime.h"
 #include "core/phases.h"
 #include "core/physics.h"
+#include "core/settings.h"
 #include "raylib.h"
 
 #if defined(__EMSCRIPTEN__)
@@ -32,6 +34,8 @@ ecs_world_t *AppWorldCreate(bool withPresentation) {
   // one, components before the systems that query them.
   PhasesRegister(world);
   CoreComponentsRegister(world);
+  ClockRegister(world);
+  SettingsRegister(world);
   PhysicsRegister(world);
   LifetimeRegister(world);
 
@@ -69,21 +73,21 @@ int AppRun(const AppConfig *config, AppModuleFn registerGame) {
   SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
 #endif
   InitWindow(config->width, config->height, config->title);
-#if defined(__EMSCRIPTEN__)
-  // The browser paces the frames, so raylib must not also throttle them.
-  // Escape has to stay harmless too: quitting inside a tab leaves a dead
-  // canvas and no way back.
-  SetExitKey(KEY_NULL);
-#else
+#if !defined(__EMSCRIPTEN__)
+  // On the web the browser paces the frames, so raylib must not also throttle
+  // them. On desktop nothing else will.
   SetTargetFPS(config->targetFps > 0 ? config->targetFps : 60);
-  SetExitKey(KEY_ESCAPE);
 #endif
+  // Escape belongs to the game, which uses it to pause. Quitting goes through
+  // the menu, or through the window's own close button.
+  SetExitKey(KEY_NULL);
   if (config->randomSeed != 0) {
     RandomSeed(config->randomSeed);
   }
 
   GfxSetClearColor(config->clearColor);
   ecs_world_t *world = AppWorldCreate(true);
+  SettingsLoad(world);
   registerGame(world);
 
 #if defined(__EMSCRIPTEN__)
@@ -98,6 +102,7 @@ int AppRun(const AppConfig *config, AppModuleFn registerGame) {
   }
 #endif
 
+  SettingsSave(world);
   AppWorldDestroy(world);
   CloseWindow();
   return 0;

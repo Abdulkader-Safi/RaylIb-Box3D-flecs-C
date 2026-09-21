@@ -11,15 +11,23 @@ the game means adding one of those three things and nothing else.
 
 Entities, components and systems come from [flecs](https://www.flecs.dev/).
 
+Four levels, drawn as grids of text. Find the keycard, open the door, reach the
+exit. Kill things for coins, and pick up what they drop.
+
 ## Controls
 
-| Action  | Keyboard and mouse   | Gamepad     |
-| ------- | -------------------- | ----------- |
-| Move    | WASD or arrow keys   | Left stick  |
-| Aim     | Mouse                | Right stick |
-| Fire    | Left click or space  | Right stick |
-| Restart | R                    | Start       |
-| Quit    | Escape               |             |
+| Action          | Keyboard and mouse   | Gamepad     |
+| --------------- | -------------------- | ----------- |
+| Move            | WASD or arrow keys   | Left stick  |
+| Aim             | Mouse                | Right stick |
+| Fire            | Left click           | Right stick |
+| Pause           | Escape or P          | Start       |
+| Menus           | W and S, Enter       | D-pad, A    |
+| Restart level   | R                    |             |
+
+Pushing the right stick both aims and fires, so it takes a firm push to
+register. A stick resting slightly off centre would otherwise hold the trigger
+down forever and outvote the mouse.
 
 ## Build and run
 
@@ -83,6 +91,7 @@ src/
     config.h                Every number worth tuning.
     game.h/.c               Registers the components and systems, then seeds the world.
     components/             What entities can have.
+    levels/                 The maps, drawn as text, and the builder that reads them.
     spawn/                  How each kind of entity is built.
     systems/                What happens each frame, one file per system.
 
@@ -173,6 +182,29 @@ Physics runs on a fixed 1/60 step with a leftover accumulator, so behaviour does
 not drift with frame rate. Contact events describe only the step that just ran,
 so they are drained inside the stepping loop. Draining after it would lose every
 hit that happened during a catch-up step.
+
+## Writing a level
+
+`src/game/levels/level_data.c`. A level is a grid of characters and a width and
+height that must match it, which the headless test checks. One tile is two
+metres.
+
+```
+#  wall            .  floor           (space) outside the level
+o  low cover       S  start           X  exit
+D  locked door     k  keycard
+l  light enemy     m  medium enemy    h  heavy enemy
+L  light spawner   M  medium spawner  H  heavy spawner
+c  coin            +  health          r  rapid fire     s  shield
+```
+
+The maps live in C rather than in data files on purpose: the web build then has
+nothing to fetch before it can start.
+
+The test does more than check the shapes. For every level it runs a breadth
+first search from the start, and fails if the keycard is behind the door it
+opens or if the exit cannot be reached once that door is open. A level nobody
+can finish fails there rather than in someone's hands.
 
 ## Tuning it
 

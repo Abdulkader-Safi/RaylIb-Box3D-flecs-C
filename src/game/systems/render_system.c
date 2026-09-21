@@ -8,11 +8,6 @@
 #include "game/config.h"
 #include "game/systems/systems.h"
 
-static void GridSystem(ecs_iter_t *it) {
-  (void)it;
-  GfxDrawGrid((int)(ARENA_HALF_EXTENT * 2.0f), 1.0f, ARENA_GRID_HEIGHT, COLOR_GRID);
-}
-
 static void BoxRenderSystem(ecs_iter_t *it) {
   const Position *positions = ecs_field(it, Position, 0);
   const BoxVisual *visuals = ecs_field(it, BoxVisual, 1);
@@ -65,13 +60,23 @@ static void AimRenderSystem(ecs_iter_t *it) {
 
 // Fades an enemy toward white as it takes damage, which is the only feedback a
 // player gets that a target is nearly down.
+static Color TierColor(EnemyTier tier) {
+  switch (tier) {
+  case ENEMY_LIGHT: return COLOR_ENEMY_LIGHT;
+  case ENEMY_HEAVY: return COLOR_ENEMY_HEAVY;
+  case ENEMY_MEDIUM:
+  default: return COLOR_ENEMY_MEDIUM;
+  }
+}
+
 static void HurtTintSystem(ecs_iter_t *it) {
   const Health *health = ecs_field(it, Health, 0);
   CapsuleVisual *visuals = ecs_field(it, CapsuleVisual, 1);
+  const Loot *loot = ecs_field(it, Loot, 2);
 
   for (int i = 0; i < it->count; ++i) {
     float wear = 1.0f - (float)health[i].current / (float)health[i].max;
-    Color healthy = COLOR_ENEMY;
+    Color healthy = TierColor(loot[i].tier);
     Color hurt = COLOR_ENEMY_HURT;
     visuals[i].color = (Color){
         (unsigned char)(healthy.r + (hurt.r - healthy.r) * wear),
@@ -83,9 +88,8 @@ static void HurtTintSystem(ecs_iter_t *it) {
 }
 
 void RenderSystemRegister(ecs_world_t *world) {
-  ECS_SYSTEM(world, HurtTintSystem, PhaseCamera, [in] Health, CapsuleVisual, Enemy);
+  ECS_SYSTEM(world, HurtTintSystem, PhaseCamera, [in] Health, CapsuleVisual, [in] Loot, Enemy);
 
-  ECS_SYSTEM(world, GridSystem, PhaseDraw3D, 0);
   ECS_SYSTEM(world, BoxRenderSystem, PhaseDraw3D, [in] Position, [in] BoxVisual);
   ECS_SYSTEM(world, CapsuleRenderSystem, PhaseDraw3D, [in] Position, [in] CapsuleVisual);
   ECS_SYSTEM(world, SphereRenderSystem, PhaseDraw3D, [in] Position, [in] SphereVisual);

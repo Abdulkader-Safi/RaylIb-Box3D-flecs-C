@@ -1,9 +1,14 @@
 #include "core/lifetime.h"
 
+#include "core/clock.h"
 #include "core/components.h"
 #include "core/phases.h"
 
 static void LifetimeSystem(ecs_iter_t *it) {
+  if (ClockIsPaused(it->world)) {
+    return;
+  }
+
   Lifetime *lifetimes = ecs_field(it, Lifetime, 0);
 
   for (int i = 0; i < it->count; ++i) {

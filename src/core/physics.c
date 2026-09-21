@@ -3,6 +3,7 @@
 #include "box3d/box3d.h"
 #include "box3d/collision.h"
 #include "box3d/math_functions.h"
+#include "core/clock.h"
 #include "core/phases.h"
 
 // Physics advances in fixed slices so behaviour does not drift with frame rate.
@@ -150,6 +151,10 @@ static void CollectContacts(ecs_world_t *world, Contacts *contacts) {
 }
 
 static void PhysicsStepSystem(ecs_iter_t *it) {
+  if (ClockIsPaused(it->world)) {
+    return;
+  }
+
   // get_mut and not ensure: inside a system ecs_singleton_ensure queues its
   // write until the end of the frame, so two systems touching the same
   // singleton would each merge their own copy and one would lose. Singletons

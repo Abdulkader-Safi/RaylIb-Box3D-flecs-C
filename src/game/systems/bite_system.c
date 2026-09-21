@@ -14,8 +14,13 @@ static void BiteSystem(ecs_iter_t *it) {
   const GameState *state = ecs_singleton_get(it->world, GameState);
   const PlayerTracker *tracker = ecs_singleton_get(it->world, PlayerTracker);
 
+  // A shield does not stop the bite landing, it stops it hurting.
+  const Powerups *powerups =
+      tracker->entity != 0 ? ecs_get(it->world, tracker->entity, Powerups) : NULL;
+  bool shielded = powerups != NULL && powerups->shield > 0.0f;
+
   Health *playerHealth = NULL;
-  if (!state->over && tracker->entity != 0) {
+  if (state->mode == MODE_PLAYING && !shielded && tracker->entity != 0) {
     playerHealth = ecs_get_mut(it->world, tracker->entity, Health);
   }
 

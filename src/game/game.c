@@ -1,6 +1,7 @@
 #include "game/game.h"
 
 #include "game/components/components.h"
+#include "game/levels/levels.h"
 #include "game/spawn/spawn.h"
 #include "game/systems/systems.h"
 
@@ -11,14 +12,18 @@ static void RegisterSimulation(ecs_world_t *world) {
   GameComponentsRegister(world);
 
   // Then the systems. Each one picks its own phase, so this order only decides
-  // ties inside a single phase. There is one that matters: restart shares
-  // PhaseSpawn with waves, and has to wipe the board before waves refill it.
-  RestartSystemRegister(world);
-  WaveSystemRegister(world);
+  // ties inside a single phase. One of those matters: the mode system shares
+  // PhaseSpawn with the spawners, and may rebuild the whole level, so it goes
+  // first and the spawners see the board they are actually topping up.
+  ModeSystemRegister(world);
+  SpawnerSystemRegister(world);
   PlayerSystemRegister(world);
   WeaponSystemRegister(world);
   ChaseSystemRegister(world);
   BiteSystemRegister(world);
+  PickupSystemRegister(world);
+  ExitSystemRegister(world);
+  DoorSystemRegister(world);
   CombatSystemRegister(world);
   DeathSystemRegister(world);
 }
@@ -30,11 +35,12 @@ void GameRegister(ecs_world_t *world) {
   RenderSystemRegister(world);
   HudSystemRegister(world);
 
-  // Finally something to play with.
-  SpawnFreshRun(world);
+  // The title screen is the starting state, with the first level standing
+  // behind it so there is something to look at.
+  LevelLoad(world, 0);
 }
 
 void GameRegisterHeadless(ecs_world_t *world) {
   RegisterSimulation(world);
-  SpawnFreshRun(world);
+  LevelLoad(world, 0);
 }

@@ -23,6 +23,11 @@ static void WeaponFireSystem(ecs_iter_t *it) {
 
   const Input *input = ecs_singleton_get(it->world, Input);
   const GameState *state = ecs_singleton_get(it->world, GameState);
+  const PlayerTracker *tracker = ecs_singleton_get(it->world, PlayerTracker);
+
+  const Powerups *powerups =
+      tracker->entity != 0 ? ecs_get(it->world, tracker->entity, Powerups) : NULL;
+  bool rapid = powerups != NULL && powerups->rapidFire > 0.0f;
 
   Shot shots[MAX_SHOTS_PER_FRAME];
   int shotCount = 0;
@@ -31,7 +36,7 @@ static void WeaponFireSystem(ecs_iter_t *it) {
     if (weapons[i].cooldown > 0.0f) {
       weapons[i].cooldown -= it->delta_time;
     }
-    if (state->over || !input->fire || weapons[i].cooldown > 0.0f) {
+    if (state->mode != MODE_PLAYING || !input->fire || weapons[i].cooldown > 0.0f) {
       continue;
     }
     if (shotCount == MAX_SHOTS_PER_FRAME) {
@@ -46,7 +51,7 @@ static void WeaponFireSystem(ecs_iter_t *it) {
         .direction = aims[i].direction,
         .weapon = weapons[i],
     };
-    weapons[i].cooldown = weapons[i].interval;
+    weapons[i].cooldown = rapid ? POWERUP_RAPID_INTERVAL : weapons[i].interval;
   }
 
   // Spawning happens after the loop. This system is immediate, so a spawn

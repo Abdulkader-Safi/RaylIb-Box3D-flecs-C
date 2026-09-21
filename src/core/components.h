@@ -35,6 +35,15 @@ typedef struct Input {
   bool fire;
   bool restart;
   bool quit;
+
+  // Menu intent. These are edges, true only on the frame the key went down,
+  // so a held key does not run down a list of options.
+  bool pause;
+  bool confirm;
+  bool menuUp;
+  bool menuDown;
+  bool menuLeft;
+  bool menuRight;
 } Input;
 
 // Where the 3D pass looks from, as a singleton. A game system points it.

@@ -16,9 +16,9 @@ static void ChaseSystem(ecs_iter_t *it) {
     return;
   }
 
-  // Once the run is over the crowd stops where it stands, so the game over
+  // Outside of play the crowd stops where it stands, so a pause or a game over
   // screen is something you read rather than something still moving.
-  if (state->over) {
+  if (state->mode != MODE_PLAYING) {
     for (int i = 0; i < it->count; ++i) {
       PhysicsDriveHorizontal(bodies[i], VEC3_ZERO);
     }

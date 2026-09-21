@@ -13,12 +13,40 @@
 extern ECS_DECLARE(Player);
 extern ECS_DECLARE(Enemy);
 extern ECS_DECLARE(Bullet);
+extern ECS_DECLARE(Wall);    // Anything solid the level is built from.
+extern ECS_DECLARE(Exit);    // Step on it with the level cleared to move on.
+extern ECS_DECLARE(Keycard); // Opens every locked door in the level.
 
 // On everything a restart is allowed to wipe, which is every entity the game
 // spawns. The framework's singletons do not have it and so survive.
 extern ECS_DECLARE(Spawned);
 
 // ---------------------------------------------------------------- data
+
+// How a level is won, and what the run is worth so far.
+typedef enum GameMode {
+  MODE_MENU,
+  MODE_PLAYING,
+  MODE_PAUSED,
+  MODE_SETTINGS,
+  MODE_LEVEL_CLEARED,
+  MODE_GAME_OVER,
+  MODE_RUN_COMPLETE,
+} GameMode;
+
+typedef enum EnemyTier {
+  ENEMY_LIGHT,
+  ENEMY_MEDIUM,
+  ENEMY_HEAVY,
+} EnemyTier;
+
+typedef enum PickupKind {
+  PICKUP_COIN,
+  PICKUP_HEALTH,
+  PICKUP_RAPID_FIRE,
+  PICKUP_SHIELD,
+  PICKUP_KEYCARD,
+} PickupKind;
 
 typedef struct Health {
   int current;
@@ -49,6 +77,38 @@ typedef struct Damage {
   int amount;
   float knockback;
 } Damage;
+
+// What an enemy is worth when it dies.
+typedef struct Loot {
+  EnemyTier tier;
+  int coins;
+  int score;
+} Loot;
+
+// Lies on the floor until the player gets close, then drifts over and is taken.
+typedef struct Pickup {
+  PickupKind kind;
+  int amount;
+} Pickup;
+
+// A timed effect on the player. Zero means it is not running.
+typedef struct Powerups {
+  float rapidFire;
+  float shield;
+} Powerups;
+
+// A locked door. It disappears once the player is carrying a keycard.
+typedef struct Door {
+  bool locked;
+} Door;
+
+// Drips enemies into the level while it has fewer than its share alive.
+typedef struct Spawner {
+  EnemyTier tier;
+  float interval;
+  float cooldown;
+  int maxAlive;
+} Spawner;
 
 // A melee attack on a timer, for anything that hurts by touching.
 typedef struct Bite {
@@ -81,6 +141,11 @@ typedef struct SphereVisual {
 
 // ---------------------------------------------------------------- singleton
 
+// How far the level reaches, so the camera can stay over it.
+typedef struct LevelBounds {
+  Vec3 half; // Half the level's size in metres, centred on the origin.
+} LevelBounds;
+
 // Who and where the player is, refreshed every frame in PhaseTrack.
 //
 // Four systems want this and none of them should have to go looking: enemies
@@ -94,9 +159,14 @@ typedef struct PlayerTracker {
 } PlayerTracker;
 
 typedef struct GameState {
+  GameMode mode;
+  GameMode modeBeforeSettings; // So the settings screen knows where to return.
+  int levelIndex;
   int score;
-  int wave;
-  float waveBreak; // Seconds left before the next wave walks in.
+  int coins;
+  float levelTime;
+  bool hasKeycard;
+  int menuIndex;   // Which row of the current menu is highlighted.
   bool over;
 
   // Set by the game over panel, read by the restart system on the next frame.
@@ -108,6 +178,11 @@ typedef struct GameState {
   bool restartRequested;
 } GameState;
 
+extern ECS_COMPONENT_DECLARE(Loot);
+extern ECS_COMPONENT_DECLARE(Pickup);
+extern ECS_COMPONENT_DECLARE(Powerups);
+extern ECS_COMPONENT_DECLARE(Door);
+extern ECS_COMPONENT_DECLARE(Spawner);
 extern ECS_COMPONENT_DECLARE(Health);
 extern ECS_COMPONENT_DECLARE(MoveSpeed);
 extern ECS_COMPONENT_DECLARE(Aim);
@@ -117,6 +192,7 @@ extern ECS_COMPONENT_DECLARE(Bite);
 extern ECS_COMPONENT_DECLARE(BoxVisual);
 extern ECS_COMPONENT_DECLARE(CapsuleVisual);
 extern ECS_COMPONENT_DECLARE(SphereVisual);
+extern ECS_COMPONENT_DECLARE(LevelBounds);
 extern ECS_COMPONENT_DECLARE(PlayerTracker);
 extern ECS_COMPONENT_DECLARE(GameState);
 

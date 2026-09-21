@@ -1,36 +1,59 @@
 // Runs the real game with no screen attached and checks that the rules hold.
 //
-// This is the whole point of AppWorldCreate(false) and GameRegisterHeadless:
-// the systems under test are the ones that ship, not a copy of them.
+// This is the point of AppWorldCreate(false) and GameRegisterHeadless: the
+// systems under test are the ones that ship, not a copy of them.
 //
 // Build and run:  make test
 #include "core/core.h"
 #include "game/components/components.h"
 #include "game/config.h"
 #include "game/game.h"
+#include "game/levels/levels.h"
 
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 
 #define STEP (1.0f / 60.0f)
 
 // Stands in for the input system, which needs a window. Aiming with the stick
 // rather than the mouse also keeps the camera out of it: a stick gives a
 // direction, so nothing has to be projected through a viewport.
-static void PushInput(ecs_world_t *world, Vec2 aimStick, bool fire, bool restart) {
-  Input *input = ecs_singleton_ensure(world, Input);
-  input->move = VEC2_ZERO;
+static void PushInput(ecs_world_t *world, Vec2 aimStick, bool fire) {
+  Input *input = ecs_singleton_get_mut(world, Input);
+  memset(input, 0, sizeof(*input));
   input->aimIsStick = true;
   input->aimStick = aimStick;
   input->fire = fire;
-  input->restart = restart;
+}
+
+static void PressConfirm(ecs_world_t *world) {
+  Input *input = ecs_singleton_get_mut(world, Input);
+  memset(input, 0, sizeof(*input));
+  input->confirm = true;
+}
+
+// The walking checks below are about the rules, not about surviving the trip,
+// so the room gets cleared and the player patched up first.
+static void ClearTheRoom(ecs_world_t *world) {
+  ecs_delete_with(world, Enemy);
+  const PlayerTracker *tracker = ecs_singleton_get(world, PlayerTracker);
+  Health *health = ecs_get_mut(world, tracker->entity, Health);
+  health->current = health->max;
+}
+
+static void Idle(ecs_world_t *world, int frames) {
+  for (int i = 0; i < frames; ++i) {
+    PushInput(world, VEC2_ZERO, false);
+    ecs_progress(world, STEP);
+  }
 }
 
 // Points the weapon at whichever enemy the query hands back first.
 static Vec2 AimAtAnEnemy(ecs_world_t *world, bool *found) {
   const PlayerTracker *tracker = ecs_singleton_get(world, PlayerTracker);
-  ecs_query_t *query = ecs_query(world, {.terms = {{.id = ecs_id(Position), .inout = EcsIn},
-                                                   {.id = Enemy}}});
+  ecs_query_t *query =
+      ecs_query(world, {.terms = {{.id = ecs_id(Position), .inout = EcsIn}, {.id = Enemy}}});
   Vec2 aim = {0.0f, 1.0f};
   *found = false;
 
@@ -50,8 +73,159 @@ static Vec2 AimAtAnEnemy(ecs_world_t *world, bool *found) {
   return aim;
 }
 
+// ---------------------------------------------------------------- the grid
+//
+// The test walks the player around for real, so it needs to know the way. A
+// breadth first search over the tiles gives it one, and asking for that path
+// at all is the check that matters: a level nobody can finish fails here
+// rather than in someone's hands.
+
+typedef struct Tile {
+  int column;
+  int row;
+} Tile;
+
+static bool FindTile(const Level *level, char wanted, Tile *out) {
+  for (int row = 0; row < level->height; ++row) {
+    for (int column = 0; column < level->width; ++column) {
+      if (level->rows[row][column] == wanted) {
+        *out = (Tile){column, row};
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+static bool Passable(char tile, bool doorsOpen) {
+  if (tile == '#' || tile == ' ' || tile == 'o') return false;
+  if (tile == 'D') return doorsOpen;
+  return true;
+}
+
+// Fills `path` from start to goal, goal first tile last. Returns the length,
+// or 0 when there is no way through.
+static int FindPath(const Level *level, Tile start, Tile goal, bool doorsOpen, Tile *path,
+                    int capacity) {
+  static int cameFrom[LEVEL_MAX_HEIGHT][LEVEL_MAX_WIDTH];
+  static Tile queue[LEVEL_MAX_HEIGHT * LEVEL_MAX_WIDTH];
+
+  for (int row = 0; row < level->height; ++row) {
+    for (int column = 0; column < level->width; ++column) {
+      cameFrom[row][column] = -1;
+    }
+  }
+
+  int head = 0;
+  int tail = 0;
+  queue[tail++] = start;
+  cameFrom[start.row][start.column] = -2; // The start has no predecessor.
+
+  const int stepColumn[4] = {1, -1, 0, 0};
+  const int stepRow[4] = {0, 0, 1, -1};
+
+  while (head < tail) {
+    Tile at = queue[head++];
+    if (at.column == goal.column && at.row == goal.row) {
+      break;
+    }
+    for (int i = 0; i < 4; ++i) {
+      int column = at.column + stepColumn[i];
+      int row = at.row + stepRow[i];
+      if (column < 0 || column >= level->width || row < 0 || row >= level->height) continue;
+      if (cameFrom[row][column] != -1) continue;
+      if (!Passable(level->rows[row][column], doorsOpen)) continue;
+      cameFrom[row][column] = i;
+      queue[tail++] = (Tile){column, row};
+    }
+  }
+
+  if (cameFrom[goal.row][goal.column] == -1) {
+    return 0;
+  }
+
+  // Walk the predecessors back to the start, then reverse.
+  int length = 0;
+  Tile at = goal;
+  while (!(at.column == start.column && at.row == start.row)) {
+    if (length >= capacity) return 0;
+    path[length++] = at;
+    int direction = cameFrom[at.row][at.column];
+    at.column -= stepColumn[direction];
+    at.row -= stepRow[direction];
+  }
+  for (int i = 0; i < length / 2; ++i) {
+    Tile swap = path[i];
+    path[i] = path[length - 1 - i];
+    path[length - 1 - i] = swap;
+  }
+  return length;
+}
+
+// Drives the move stick from tile centre to tile centre. Going via the centres
+// keeps the player clear of the corners it would otherwise snag on.
+static bool WalkPath(ecs_world_t *world, const Level *level, const Tile *path, int length,
+                     int framesPerTile) {
+  const PlayerTracker *tracker = ecs_singleton_get(world, PlayerTracker);
+  const GameState *state = ecs_singleton_get(world, GameState);
+
+  for (int i = 0; i < length; ++i) {
+    // The trip can end before the last tile: stepping within reach of the exit
+    // clears the level, and a cleared level stops taking movement. That is an
+    // arrival, not a failure.
+    if (state->mode != MODE_PLAYING) {
+      return true;
+    }
+    Vec3 target = LevelTileToWorld(level, path[i].column, path[i].row, 0.0f);
+    bool arrived = false;
+
+    for (int frame = 0; frame < framesPerTile && !arrived; ++frame) {
+      if (state->mode != MODE_PLAYING) {
+        return true;
+      }
+      Vec3 toTarget = Vec3Flat(Vec3Sub(target, tracker->position));
+      if (Vec3Length(toTarget) <= 0.6f) {
+        arrived = true;
+        break;
+      }
+      Vec3 direction = Vec3Normalize(toTarget);
+      Input *input = ecs_singleton_get_mut(world, Input);
+      memset(input, 0, sizeof(*input));
+      input->move = Vec2Make(direction.x, -direction.z);
+      ecs_progress(world, STEP);
+    }
+    if (!arrived) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Walks to the first tile matching `wanted`, pathing around the walls.
+static bool WalkToTile(ecs_world_t *world, const Level *level, char wanted, bool doorsOpen) {
+  static Tile path[LEVEL_MAX_HEIGHT * LEVEL_MAX_WIDTH];
+  Tile start;
+  Tile goal;
+  if (!FindTile(level, 'S', &start) || !FindTile(level, wanted, &goal)) {
+    return false;
+  }
+
+  // The player has moved since the level was built, so the search starts from
+  // the tile it is standing on rather than from the level's start marker.
+  const PlayerTracker *tracker = ecs_singleton_get(world, PlayerTracker);
+  Vec3 at = tracker->position;
+  start.column = (int)((at.x / TILE_SIZE) + (float)level->width * 0.5f);
+  start.row = (int)((at.z / TILE_SIZE) + (float)level->height * 0.5f);
+
+  int length = FindPath(level, start, goal, doorsOpen, path, (int)(sizeof(path) / sizeof(path[0])));
+  if (length == 0) {
+    return false;
+  }
+  return WalkPath(world, level, path, length, 240);
+}
+
 int main(void) {
-  RandomSeed(20240921); // Spawn positions have to repeat run to run.
+  RandomSeed(20240921); // Spawner stagger has to repeat run to run.
 
   ecs_world_t *world = AppWorldCreate(false);
   GameRegisterHeadless(world);
@@ -59,80 +233,127 @@ int main(void) {
   const GameState *state = ecs_singleton_get(world, GameState);
   const PlayerTracker *tracker = ecs_singleton_get(world, PlayerTracker);
 
-  // The world starts seeded: a player, and the arena it stands on.
-  PushInput(world, VEC2_ZERO, false, false);
-  ecs_progress(world, STEP);
+  // Every level has to be well formed, or the builder walks off the end of a
+  // row, and every level has to be finishable.
+  static Tile scratch[LEVEL_MAX_HEIGHT * LEVEL_MAX_WIDTH];
+  for (int i = 0; i < LevelCount(); ++i) {
+    const Level *level = LevelAt(i);
+    assert(level->width <= LEVEL_MAX_WIDTH && level->height <= LEVEL_MAX_HEIGHT);
+
+    int starts = 0;
+    int exits = 0;
+    for (int row = 0; row < level->height; ++row) {
+      assert((int)strlen(level->rows[row]) == level->width);
+      for (int column = 0; column < level->width; ++column) {
+        if (level->rows[row][column] == 'S') starts += 1;
+        if (level->rows[row][column] == 'X') exits += 1;
+      }
+    }
+    assert(starts == 1);
+    assert(exits == 1);
+
+    Tile start;
+    Tile keycard;
+    Tile exit;
+    assert(FindTile(level, 'S', &start));
+    assert(FindTile(level, 'X', &exit));
+
+    int capacity = (int)(sizeof(scratch) / sizeof(scratch[0]));
+    if (FindTile(level, 'k', &keycard)) {
+      // The keycard cannot be behind the door it opens.
+      assert(FindPath(level, start, keycard, false, scratch, capacity) > 0);
+    }
+    // And the exit has to be reachable once the door is open.
+    assert(FindPath(level, start, exit, true, scratch, capacity) > 0);
+    printf("level %d (%s) is finishable\n", i + 1, level->name);
+  }
+
+  // The game opens on the title screen with level one standing behind it.
+  assert(state->mode == MODE_MENU);
+  Idle(world, 1);
   assert(tracker->entity != 0);
   assert(tracker->health == PLAYER_MAX_HEALTH);
-  assert(state->wave == 1);
-  assert(ecs_count(world, Enemy) == WAVE_FIRST_COUNT);
-  assert(state->score == 0);
 
-  // Ten seconds of standing still and shooting at whatever is closest.
-  for (int frame = 0; frame < 600; ++frame) {
+  // Nothing moves while a menu is up.
+  Vec3 restingPosition = tracker->position;
+  Idle(world, 60);
+  assert(Vec3Distance(restingPosition, tracker->position) < 0.01f);
+  assert(ClockIsPaused(world));
+
+  // Start run is the first row of the title menu.
+  PressConfirm(world);
+  ecs_progress(world, STEP);
+  assert(state->mode == MODE_PLAYING);
+  assert(!ClockIsPaused(world));
+  assert(state->levelIndex == 0);
+  assert(!state->hasKeycard);
+
+  // Shooting an enemy has to pay out in score and leave coins behind.
+  int enemiesAtStart = ecs_count(world, Enemy);
+  assert(enemiesAtStart > 0);
+  for (int frame = 0; frame < 900; ++frame) {
     bool found = false;
     Vec2 aim = AimAtAnEnemy(world, &found);
-    PushInput(world, aim, found, false);
+    PushInput(world, aim, found);
     ecs_progress(world, STEP);
   }
+  printf("after 15s: score %d, coins %d, enemies %d, health %d\n", state->score, state->coins,
+         ecs_count(world, Enemy), tracker->health);
+  assert(state->score > 0);
 
-  printf("after 10s: score %d, wave %d, enemies %d, health %d, bullets %d\n", state->score,
-         state->wave, ecs_count(world, Enemy), tracker->health, ecs_count(world, Bullet));
+  // The keycard opens the door, and only then.
+  const Level *level = LevelAt(0);
+  assert(tracker->health > 0);
+  ClearTheRoom(world);
 
-  // Bullets that reach an enemy have to kill it, and a kill has to pay out.
-  assert(state->score >= WAVE_FIRST_COUNT * SCORE_PER_KILL);
-  assert(state->score % SCORE_PER_KILL == 0);
-  // Clearing a wave has to bring on the next one.
-  assert(state->wave > 1);
-  // Enemies that reach a player standing still have to hurt it.
-  assert(tracker->health < PLAYER_MAX_HEALTH);
+  assert(ecs_count(world, Door) == 1);
+  assert(WalkToTile(world, level, 'k', false));
+  Idle(world, 2);
+  assert(state->hasKeycard);
+  Idle(world, 2);
+  assert(ecs_count(world, Door) == 0);
 
-  // Bullets are not immortal: stop firing and the pool empties out.
-  for (int frame = 0; frame < 180; ++frame) {
-    PushInput(world, VEC2_ZERO, false, false);
-    ecs_progress(world, STEP);
-  }
-  assert(ecs_count(world, Bullet) == 0);
+  // Reaching the exit clears the level.
+  ClearTheRoom(world);
+  assert(WalkToTile(world, level, 'X', true));
+  Idle(world, 2);
+  assert(state->mode == MODE_LEVEL_CLEARED);
+  int scoreAfterLevel = state->score;
+  assert(scoreAfterLevel >= LEVEL_COMPLETE_BONUS);
 
-  // A dead player ends the run and stops the waves.
-  Health *health = ecs_get_mut(world, tracker->entity, Health);
-  health->current = 0;
-  PushInput(world, VEC2_ZERO, false, false);
+  // Confirming moves on, and the new level is a fresh board.
+  PressConfirm(world);
   ecs_progress(world, STEP);
-  assert(state->over);
-
-  int waveAtDeath = state->wave;
-  for (int frame = 0; frame < 300; ++frame) {
-    PushInput(world, VEC2_ZERO, false, false);
-    ecs_progress(world, STEP);
-  }
-  assert(state->wave == waveAtDeath);
-
-  // The game over panel's button restarts too, and it is the harder path: it
-  // is set while drawing at the end of a frame and has to survive PhaseInput
-  // overwriting the Input singleton at the start of the next one.
-  ecs_singleton_get_mut(world, GameState)->restartRequested = true;
-  PushInput(world, VEC2_ZERO, false, false);
-  ecs_progress(world, STEP);
-  assert(!state->over);
-  assert(!state->restartRequested);
-  assert(tracker->entity != 0);
+  assert(state->mode == MODE_PLAYING);
+  assert(state->levelIndex == 1);
+  assert(!state->hasKeycard);
+  assert(state->score == scoreAfterLevel);
+  Idle(world, 1);
   assert(tracker->health == PLAYER_MAX_HEALTH);
 
-  // And so does the key, from a fresh run this time.
+  // A dead player stops the level rather than the whole program.
   ecs_get_mut(world, tracker->entity, Health)->current = 0;
-  PushInput(world, VEC2_ZERO, false, false);
-  ecs_progress(world, STEP);
-  assert(state->over);
+  Idle(world, 2);
+  assert(state->mode == MODE_GAME_OVER);
 
-  PushInput(world, VEC2_ZERO, false, true);
+  PressConfirm(world);
   ecs_progress(world, STEP);
-  assert(!state->over);
-  assert(state->score == 0);
-  assert(state->wave == 1);
-  assert(tracker->entity != 0);
+  Idle(world, 1);
+  assert(state->mode == MODE_PLAYING);
+  assert(state->levelIndex == 1);
   assert(tracker->health == PLAYER_MAX_HEALTH);
-  assert(ecs_count(world, Enemy) == WAVE_FIRST_COUNT);
+
+  // Pausing freezes the simulation, and Escape lets it go again.
+  Input *input = ecs_singleton_get_mut(world, Input);
+  memset(input, 0, sizeof(*input));
+  input->pause = true;
+  ecs_progress(world, STEP);
+  assert(state->mode == MODE_PAUSED);
+  assert(ClockIsPaused(world));
+
+  restingPosition = tracker->position;
+  Idle(world, 60);
+  assert(Vec3Distance(restingPosition, tracker->position) < 0.01f);
 
   AppWorldDestroy(world);
   printf("all gameplay checks passed\n");

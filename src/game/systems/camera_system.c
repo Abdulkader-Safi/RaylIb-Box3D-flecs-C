@@ -11,10 +11,20 @@ static void CameraFollowSystem(ecs_iter_t *it) {
     return;
   }
 
+  // Follow the player, but stop short of the level's edge. Clamping the target
+  // rather than the camera keeps the framing honest: the player can still walk
+  // into a corner, the view just stops trailing them out over the void.
+  const LevelBounds *bounds = ecs_singleton_get(it->world, LevelBounds);
+  Vec3 wanted = tracker->position;
+  float limitX = bounds->half.x - CAMERA_EDGE_MARGIN_X;
+  float limitZ = bounds->half.z - CAMERA_EDGE_MARGIN_Z;
+  // A level narrower than twice the margin has no room to pan, so it centres.
+  wanted.x = limitX > 0.0f ? MathClamp(wanted.x, -limitX, limitX) : 0.0f;
+  wanted.z = limitZ > 0.0f ? MathClamp(wanted.z, -limitZ, limitZ) : 0.0f;
+
   GameCamera *camera = ecs_singleton_get_mut(it->world, GameCamera);
   camera->fieldOfView = CAMERA_FIELD_OF_VIEW;
-  camera->target =
-      Vec3Lerp(camera->target, tracker->position, MathSmoothing(CAMERA_FOLLOW_RATE, it->delta_time));
+  camera->target = Vec3Lerp(camera->target, wanted, MathSmoothing(CAMERA_FOLLOW_RATE, it->delta_time));
   camera->position = Vec3Add(camera->target, Vec3Make(0.0f, CAMERA_HEIGHT, CAMERA_BACK_OFFSET));
 }
 
