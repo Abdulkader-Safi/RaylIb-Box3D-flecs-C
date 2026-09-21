@@ -1,94 +1,124 @@
-// Headless check of the loop that is easy to break: fire, hit, score, clean up.
-// Build and run it with:  cmake --build build --target game_tests && ./build/bin/game_tests
-#include "core/game.h"
-#include "raymath.h"
+// Runs the real game with no screen attached and checks that the rules hold.
+//
+// This is the whole point of AppWorldCreate(false) and GameRegisterHeadless:
+// the systems under test are the ones that ship, not a copy of them.
+//
+// Build and run:  make test
+#include "core/core.h"
+#include "game/components/components.h"
+#include "game/config.h"
+#include "game/game.h"
 
 #include <assert.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 #define STEP (1.0f / 60.0f)
 
-static const Enemy *FirstLivingEnemy(const EnemyPool *pool) {
-  for (int i = 0; i < MAX_ENEMIES; ++i) {
-    if (pool->items[i].alive) {
-      return pool->items + i;
-    }
-  }
-  return NULL;
+// Stands in for the input system, which needs a window. Aiming with the stick
+// rather than the mouse also keeps the camera out of it: a stick gives a
+// direction, so nothing has to be projected through a viewport.
+static void PushInput(ecs_world_t *world, Vec2 aimStick, bool fire, bool restart) {
+  Input *input = ecs_singleton_ensure(world, Input);
+  input->move = VEC2_ZERO;
+  input->aimIsStick = true;
+  input->aimStick = aimStick;
+  input->fire = fire;
+  input->restart = restart;
 }
 
-// One frame of a player standing still and shooting at the nearest enemy.
-static InputState AimAtNearestEnemy(const Game *game) {
-  InputState input = {0};
-  const Enemy *target = FirstLivingEnemy(&game->enemies);
-  Vector3 playerPosition = PlayerPosition(&game->player);
-  input.aimPoint = target != NULL ? EnemyPosition(target)
-                                  : Vector3Add(playerPosition, (Vector3){0.0f, 0.0f, 1.0f});
-  input.firing = target != NULL;
-  return input;
+// Points the weapon at whichever enemy the query hands back first.
+static Vec2 AimAtAnEnemy(ecs_world_t *world, bool *found) {
+  const PlayerTracker *tracker = ecs_singleton_get(world, PlayerTracker);
+  ecs_query_t *query = ecs_query(world, {.terms = {{.id = ecs_id(Position), .inout = EcsIn},
+                                                   {.id = Enemy}}});
+  Vec2 aim = {0.0f, 1.0f};
+  *found = false;
+
+  ecs_iter_t it = ecs_query_iter(world, query);
+  while (ecs_query_next(&it)) {
+    if (it.count > 0) {
+      const Position *positions = ecs_field(&it, Position, 0);
+      Vec3 toEnemy = Vec3Normalize(Vec3Flat(Vec3Sub(positions[0].value, tracker->position)));
+      // The stick's y axis points up the screen, which is negative Z.
+      aim = Vec2Normalize(Vec2Make(toEnemy.x, -toEnemy.z));
+      *found = true;
+      ecs_iter_fini(&it);
+      break;
+    }
+  }
+  ecs_query_fini(query);
+  return aim;
 }
 
 int main(void) {
-  SetRandomSeed(20240921); // Spawn positions must repeat run to run.
+  RandomSeed(20240921); // Spawn positions have to repeat run to run.
 
-  Game *game = malloc(sizeof(Game));
-  assert(game != NULL);
-  GameInit(game);
+  ecs_world_t *world = AppWorldCreate(false);
+  GameRegisterHeadless(world);
 
-  assert(game->wave == 1);
-  assert(game->enemies.aliveCount == WAVE_FIRST_COUNT);
-  assert(game->score == 0);
-  assert(game->player.health == PLAYER_MAX_HEALTH);
+  const GameState *state = ecs_singleton_get(world, GameState);
+  const PlayerTracker *tracker = ecs_singleton_get(world, PlayerTracker);
 
-  int startingEnemies = game->enemies.aliveCount;
+  // The world starts seeded: a player, and the arena it stands on.
+  PushInput(world, VEC2_ZERO, false, false);
+  ecs_progress(world, STEP);
+  assert(tracker->entity != 0);
+  assert(tracker->health == PLAYER_MAX_HEALTH);
+  assert(state->wave == 1);
+  assert(ecs_count(world, Enemy) == WAVE_FIRST_COUNT);
+  assert(state->score == 0);
+
+  // Ten seconds of standing still and shooting at whatever is closest.
   for (int frame = 0; frame < 600; ++frame) {
-    InputState input = AimAtNearestEnemy(game);
-    GameSimulate(game, &input, STEP);
+    bool found = false;
+    Vec2 aim = AimAtAnEnemy(world, &found);
+    PushInput(world, aim, found, false);
+    ecs_progress(world, STEP);
   }
 
-  printf("after 10s: score %d, enemies %d, health %d, bullets %d\n", game->score,
-         game->enemies.aliveCount, game->player.health, game->bullets.aliveCount);
+  printf("after 10s: score %d, wave %d, enemies %d, health %d, bullets %d\n", state->score,
+         state->wave, ecs_count(world, Enemy), tracker->health, ecs_count(world, Bullet));
 
-  // Bullets that reach an enemy have to kill it and pay out.
-  assert(game->score >= SCORE_PER_KILL);
-  assert(game->score % SCORE_PER_KILL == 0);
-  assert(game->score >= startingEnemies * SCORE_PER_KILL);
-
+  // Bullets that reach an enemy have to kill it, and a kill has to pay out.
+  assert(state->score >= WAVE_FIRST_COUNT * SCORE_PER_KILL);
+  assert(state->score % SCORE_PER_KILL == 0);
+  // Clearing a wave has to bring on the next one.
+  assert(state->wave > 1);
   // Enemies that reach a player standing still have to hurt it.
-  assert(game->player.health < PLAYER_MAX_HEALTH);
+  assert(tracker->health < PLAYER_MAX_HEALTH);
 
-  // Spent and expired bullets must give their slots back.
-  InputState idle = {0};
+  // Bullets are not immortal: stop firing and the pool empties out.
   for (int frame = 0; frame < 180; ++frame) {
-    GameSimulate(game, &idle, STEP);
+    PushInput(world, VEC2_ZERO, false, false);
+    ecs_progress(world, STEP);
   }
-  assert(game->bullets.aliveCount == 0);
+  assert(ecs_count(world, Bullet) == 0);
 
-  // Killing a wave has to start the next one.
-  EnemyPoolClear(&game->enemies);
-  int waveBefore = game->wave;
+  // A dead player ends the run and stops the waves.
+  Health *health = ecs_get_mut(world, tracker->entity, Health);
+  health->current = 0;
+  PushInput(world, VEC2_ZERO, false, false);
+  ecs_progress(world, STEP);
+  assert(state->over);
+
+  int waveAtDeath = state->wave;
   for (int frame = 0; frame < 300; ++frame) {
-    GameSimulate(game, &idle, STEP);
+    PushInput(world, VEC2_ZERO, false, false);
+    ecs_progress(world, STEP);
   }
-  assert(game->wave > waveBefore);
-  assert(game->enemies.aliveCount > 0);
+  assert(state->wave == waveAtDeath);
 
-  // A dead player ends the run, and restarting puts everything back.
-  PlayerDamage(&game->player, PLAYER_MAX_HEALTH);
-  GameSimulate(game, &idle, STEP);
-  assert(game->state == GAME_OVER);
+  // Restarting puts everything back, including the player's body.
+  PushInput(world, VEC2_ZERO, false, true);
+  ecs_progress(world, STEP);
+  assert(!state->over);
+  assert(state->score == 0);
+  assert(state->wave == 1);
+  assert(tracker->entity != 0);
+  assert(tracker->health == PLAYER_MAX_HEALTH);
+  assert(ecs_count(world, Enemy) == WAVE_FIRST_COUNT);
 
-  InputState restart = {0};
-  restart.restart = true;
-  GameSimulate(game, &restart, STEP);
-  assert(game->state == GAME_PLAYING);
-  assert(game->wave == 1);
-  assert(game->score == 0);
-  assert(game->player.health == PLAYER_MAX_HEALTH);
-
-  GameShutdown(game);
-  free(game);
+  AppWorldDestroy(world);
   printf("all gameplay checks passed\n");
   return 0;
 }

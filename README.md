@@ -1,9 +1,15 @@
 # Twin stick shooter
 
-A top-down arena shooter in C, drawn with [raylib](https://www.raylib.com/) and
-simulated with [Box3D](https://github.com/erincatto/box3d), Erin Catto's 3D
-physics engine. Move with one hand, aim with the other, and let the solver
-handle the shoving when a wave closes in.
+A top-down arena shooter, and the small framework it runs on.
+
+The split is the point. `src/core` is the framework: it owns the window, the
+loop, the ECS world, drawing, input and rigid bodies, and it is the only code
+that talks to [raylib](https://www.raylib.com/), raygui or
+[Box3D](https://github.com/erincatto/box3d). `src/game` is the game: components,
+the systems that act on them, and the recipes that build entities. Working on
+the game means adding one of those three things and nothing else.
+
+Entities, components and systems come from [flecs](https://www.flecs.dev/).
 
 ## Controls
 
@@ -17,81 +23,132 @@ handle the shoving when a wave closes in.
 
 ## Build and run
 
-Both raylib 5.5 and Box3D v0.1.0 are pulled in by CMake on the first configure,
-so there is nothing to install first beyond CMake and a C compiler.
+raylib 5.5, Box3D v0.1.0 and flecs v4.1.6 are fetched by CMake on the first
+configure. You need CMake and a C compiler, nothing else.
 
 ```sh
 make          # configure, build, run
 make build    # build only
-make test     # run the headless gameplay checks
-make clean    # delete the build directory
+make test     # layer check, then the headless gameplay checks
+make check    # layer check on its own
+make clean
 ```
 
-Or drive CMake yourself:
-
-```sh
-cmake -S . -B build
-cmake --build build
-./build/bin/game
-```
-
-## How the folders are laid out
-
-Headers are included by folder, so `#include "entities/enemy.h"` reads the same
-from anywhere in the tree.
+## Layout
 
 ```
 src/
-  main.c              Opens the window and runs update then draw. Nothing else.
-  core/
-    config.h          Every tunable number: speeds, damage, wave sizes, camera.
-    game.h/.c         All game state, and the order things happen in a frame.
-    input.h/.c        Keyboard, mouse and gamepad folded into one InputState.
-  physics/
-    physics.h/.c      The Box3D world: fixed stepping, body factories, filtering.
-  entities/
-    entity.h          The tag every physics body carries as its user data.
-    player.h/.c       Movement, aim, weapon cooldown, health.
-    enemy.h/.c        A pool of chasers that steer at the player.
-    bullet.h/.c       A pool of projectiles that expire or get spent on a hit.
-  render/
-    render.h/.c       The 3D pass: arena, characters, bullets, camera follow.
-    hud.h/.c          The 2D overlay and the game over panel, built with raygui.
-  world/
-    arena.h/.c        The static floor and four walls, plus enemy spawn points.
-tests/
-  test_gameplay.c     Headless run of the fire, hit, score and wave logic.
-include/
-  raygui.h            Vendored, used only by the HUD.
+  main.c                    Describes a window, hands over GameRegister. That is all.
+
+  core/                     The framework. The only code that includes raylib or Box3D.
+    core.h                  One include that brings in the whole framework.
+    app.h/.c                Window, ECS world, the loop.
+    phases.h/.c             The frame as an ordered chain of phases.
+    components.h/.c         Position, PhysicsBody, Lifetime, Input, GameCamera, Contacts.
+    physics.h/.c            Box3D behind a handle. Stepping, bodies, contacts as entity pairs.
+    gfx.h/.c                Drawing calls, and the systems that open and close each pass.
+    input.h/.c              Keyboard, mouse and pad folded into the Input singleton.
+    lifetime.h/.c           Count down, then delete.
+    system.h/.c             Registering a system that may change the world on the spot.
+    math.h/.c               Vec2, Vec3, Rect, Color and the maths game code needs.
+
+  game/                     The game. Never includes an engine header.
+    config.h                Every number worth tuning.
+    game.h/.c               Registers the components and systems, then seeds the world.
+    components/             What entities can have.
+    spawn/                  How each kind of entity is built.
+    systems/                What happens each frame, one file per system.
+
+tests/test_gameplay.c       Runs the real systems with no window attached.
+tools/check_layers.sh       Fails if game code reaches past core.
+include/raygui.h            Vendored, compiled once inside core/gfx.c.
 ```
 
-## How the physics is wired
+## Adding to the game
 
-Everything that exists in the world is a Box3D body, and every body carries a
-pointer to an `Entity` as its user data. That is the whole trick: when a contact
-event arrives holding two shape ids, `game.c` walks them back to bodies, reads
-the two `Entity` tags, and knows a bullet just met an enemy.
+Three moves cover almost everything.
 
-Three body shapes cover the game:
+**A component.** Add the struct and an `extern ECS_COMPONENT_DECLARE` to
+`game/components/components.h`, then a `ECS_COMPONENT_DECLARE` and a
+`ECS_COMPONENT_DEFINE` in `components.c`. Done.
 
-- The floor and walls are static box hulls.
-- The player and enemies are capsules with rotation locked on all three axes, so
-  a body absorbs a shove without tipping over or spinning.
-- Bullets are weightless spheres flagged `isBullet`, which turns on continuous
-  collision so a fast shot cannot tunnel through a wall.
+**A system.** New file in `game/systems/`, one register function, add it to
+`systems.h` and to the list in `game.c`. The phase it runs in is chosen inside
+its own file:
+
+```c
+static void DriftSystem(ecs_iter_t *it) {
+  const PhysicsBody *bodies = ecs_field(it, PhysicsBody, 0);
+  const Drift *drift = ecs_field(it, Drift, 1);
+
+  for (int i = 0; i < it->count; ++i) {
+    PhysicsApplyImpulse(bodies[i], Vec3Scale(drift[i].direction, it->delta_time));
+  }
+}
+
+void DriftSystemRegister(ecs_world_t *world) {
+  ECS_SYSTEM(world, DriftSystem, PhaseLogic, [in] PhysicsBody, [in] Drift);
+}
+```
+
+**A kind of entity.** A spawn function in `game/spawn/spawn.c` that asks the
+framework for a body and attaches the components that describe it. Give it a
+`CapsuleVisual` and it gets drawn; no drawing code changes.
+
+A system that spawns or deletes entities is registered with
+`SystemRegisterImmediate` instead of `ECS_SYSTEM`. The comment at the top of
+`core/system.h` explains when that matters.
+
+## The frame
+
+`core/phases.c` is the whole order, top to bottom. Seven of the phases are for
+game systems:
+
+| Phase              | For                                            |
+| ------------------ | ---------------------------------------------- |
+| `PhaseSpawn`       | Create and destroy entities, waves, restarts   |
+| `PhaseTrack`       | Publish facts other systems need, as singletons |
+| `PhaseLogic`       | Read input, steer, decide                      |
+| `PhasePostPhysics` | React to the collisions the step produced      |
+| `PhaseCleanup`     | Remove what died this frame                    |
+| `PhaseCamera`      | Point the camera                               |
+| `PhaseDraw3D`      | Draw inside the 3D pass                        |
+| `PhaseDrawUI`      | Draw the flat overlay                          |
+
+The rest belong to the framework. It polls input, steps physics, copies body
+positions into `Position`, and opens and closes the drawing passes around your
+draw systems. A draw system just draws.
+
+## How physics reaches the ECS
+
+Bodies are described, not built by hand. `PhysicsCreateBody` takes a `BodyDesc`
+and returns a `PhysicsBody`, which is the engine's id packed into an integer so
+that no game header has to include Box3D. Three kinds cover the game: a static
+box for scenery, an upright capsule with rotation locked for anything that
+walks, and a weightless sphere with continuous collision for anything shot.
+
+Two details do most of the work:
+
+- The entity id rides along on the body as its user data. When Box3D reports
+  that two shapes started touching, the framework turns that into a pair of
+  entity ids in the `Contacts` singleton. `combat_system.c` reads that list and
+  never learns what a shape is.
+- Deleting an entity destroys its body, because the teardown hangs off the
+  `PhysicsBody` component itself. No system has to remember, and wiping a whole
+  run with one `ecs_delete_with` cleans up the physics world along with it.
 
 Characters are driven by writing horizontal velocity each frame and leaving the
-vertical component to gravity. Direct control stays crisp, and the solver still
-resolves every wall and every collision between bodies, which is what makes a
-crowd of enemies pile up and squeeze around each other instead of overlapping.
+vertical part to gravity. Control stays crisp, and the solver still resolves
+every wall and every body against every other, which is what makes a wave of
+chasers pile up and squeeze around each other rather than overlap.
 
 Physics runs on a fixed 1/60 step with a leftover accumulator, so behaviour does
 not drift with frame rate. Contact events describe only the step that just ran,
-so `PhysicsStep` drains them after each one and hands them to a callback.
-Nothing destroys a body from inside that callback: hits mark their target, and
-`BulletPoolUpdate` and `EnemyPoolReap` do the removals once the step is over.
+so they are drained inside the stepping loop. Draining after it would lose every
+hit that happened during a catch-up step.
 
 ## Tuning it
 
-Open `src/core/config.h`. Wave sizes, fire rate, knockback, camera height and
-arena size are all there, and none of them appear anywhere else in the code.
+`src/game/config.h`. Wave sizes, fire rate, knockback, camera height, arena
+size and the palette are all there, and none of those numbers appear anywhere
+else in the code.

@@ -150,7 +150,12 @@ static void CollectContacts(ecs_world_t *world, Contacts *contacts) {
 }
 
 static void PhysicsStepSystem(ecs_iter_t *it) {
-  Contacts *contacts = ecs_singleton_ensure(it->world, Contacts);
+  // get_mut and not ensure: inside a system ecs_singleton_ensure queues its
+  // write until the end of the frame, so two systems touching the same
+  // singleton would each merge their own copy and one would lose. Singletons
+  // all exist from registration, so a direct mutable pointer is both correct
+  // and simpler.
+  Contacts *contacts = ecs_singleton_get_mut(it->world, Contacts);
   contacts->count = 0;
 
   g_accumulator += it->delta_time;
@@ -184,8 +189,6 @@ void PhysicsRegister(ecs_world_t *world) {
   worldDef.gravity = (b3Vec3){0.0f, PHYSICS_GRAVITY, 0.0f};
   g_worldId = b3CreateWorld(&worldDef);
   g_accumulator = 0.0f;
-
-  ecs_singleton_set(world, Contacts, {0});
 
   ECS_SYSTEM(world, PhysicsStepSystem, PhasePhysics, 0);
   ECS_SYSTEM(world, PhysicsSyncSystem, PhaseSync, Position, [in] PhysicsBody);

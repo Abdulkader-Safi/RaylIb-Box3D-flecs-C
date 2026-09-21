@@ -13,6 +13,8 @@
 #include "core/math.h"
 #include "flecs.h"
 
+#include <stdbool.h>
+
 typedef struct AppConfig {
   int width;
   int height;
@@ -27,6 +29,14 @@ typedef struct AppConfig {
 typedef void (*AppModuleFn)(ecs_world_t *world);
 
 int AppRun(const AppConfig *config, AppModuleFn registerGame);
+
+// Builds a world with the framework registered, without opening a window.
+//
+// Pass false for withPresentation to leave out the systems that poll hardware
+// input and draw, which is what lets a test run the whole game with no screen
+// attached. AppRun uses this too, so there is only one registration list.
+ecs_world_t *AppWorldCreate(bool withPresentation);
+void AppWorldDestroy(ecs_world_t *world);
 
 // Ends the loop after the current frame.
 void AppRequestQuit(ecs_world_t *world);

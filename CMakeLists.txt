@@ -60,6 +60,7 @@ set(CORE_SOURCES
     src/core/math.c
     src/core/phases.c
     src/core/physics.c
+    src/core/system.c
 )
 
 # game is the ECS: components, the systems that act on them, and the recipes

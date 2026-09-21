@@ -45,11 +45,9 @@ static void GfxFrameEndSystem(ecs_iter_t *it) {
   EndDrawing();
 }
 
-void GfxRegister(ecs_world_t *world, Color clearColor) {
-  g_clearColor = clearColor;
-  ecs_singleton_set(world, GameCamera,
-                    {.position = {0.0f, 20.0f, 20.0f}, .target = VEC3_ZERO, .fieldOfView = 50.0f});
+void GfxSetClearColor(Color color) { g_clearColor = color; }
 
+void GfxRegister(ecs_world_t *world) {
   ECS_SYSTEM(world, GfxFrameBeginSystem, PhaseFrameBegin, 0);
   ECS_SYSTEM(world, GfxOverlaySystem, PhaseOverlay, 0);
   ECS_SYSTEM(world, GfxFrameEndSystem, PhaseFrameEnd, 0);

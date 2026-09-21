@@ -30,4 +30,12 @@ void CoreComponentsRegister(ecs_world_t *world) {
   ECS_COMPONENT_DEFINE(world, Contacts);
 
   ecs_set_hooks(world, PhysicsBody, {.dtor = PhysicsBodyDtor});
+
+  // The framework's singletons always exist, whether or not there is a window
+  // polling input or a camera drawing anything.
+  ecs_singleton_set(world, Input, {0});
+  ecs_singleton_set(world, Contacts, {0});
+  ecs_singleton_set(world, GameCamera,
+                    {.position = {0.0f, 20.0f, 20.0f}, .target = {0.0f, 0.0f, 0.0f},
+                     .fieldOfView = 50.0f});
 }

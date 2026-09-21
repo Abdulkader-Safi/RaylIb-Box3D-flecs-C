@@ -11,5 +11,6 @@
 #include "core/math.h"
 #include "core/phases.h"
 #include "core/physics.h"
+#include "core/system.h"
 
 #endif // CORE_H

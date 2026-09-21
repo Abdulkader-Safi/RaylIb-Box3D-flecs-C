@@ -9,7 +9,8 @@
 #include "core/math.h"
 #include "flecs.h"
 
-void GfxRegister(ecs_world_t *world, Color clearColor);
+void GfxRegister(ecs_world_t *world);
+void GfxSetClearColor(Color color);
 
 // 3D, for systems in PhaseDraw3D.
 void GfxDrawBox(Vec3 center, Vec3 size, Color color);

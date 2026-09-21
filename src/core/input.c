@@ -36,7 +36,7 @@ static Vec2 ReadMove(void) {
 }
 
 static void InputPollSystem(ecs_iter_t *it) {
-  Input *input = ecs_singleton_ensure(it->world, Input);
+  Input *input = ecs_singleton_get_mut(it->world, Input);
 
   input->move = ReadMove();
   input->restart = IsKeyPressed(KEY_R);
@@ -61,7 +61,6 @@ static void InputPollSystem(ecs_iter_t *it) {
 }
 
 void InputRegister(ecs_world_t *world) {
-  ecs_singleton_set(world, Input, {0});
   ECS_SYSTEM(world, InputPollSystem, PhaseInput, 0);
 }
 

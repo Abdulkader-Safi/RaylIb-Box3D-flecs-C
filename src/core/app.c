@@ -8,6 +8,31 @@
 #include "core/physics.h"
 #include "raylib.h"
 
+ecs_world_t *AppWorldCreate(bool withPresentation) {
+  ecs_world_t *world = ecs_init();
+
+  // Order matters here and nowhere else: phases before the systems that pick
+  // one, components before the systems that query them.
+  PhasesRegister(world);
+  CoreComponentsRegister(world);
+  PhysicsRegister(world);
+  LifetimeRegister(world);
+
+  if (withPresentation) {
+    InputRegister(world);
+    GfxRegister(world);
+  }
+  return world;
+}
+
+void AppWorldDestroy(ecs_world_t *world) {
+  // Tearing down the world deletes every entity, which runs the PhysicsBody
+  // destructor on each one. The physics world has to outlive that, so it is
+  // destroyed second.
+  ecs_fini(world);
+  PhysicsShutdown();
+}
+
 int AppRun(const AppConfig *config, AppModuleFn registerGame) {
   SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_WINDOW_RESIZABLE);
   InitWindow(config->width, config->height, config->title);
@@ -17,30 +42,17 @@ int AppRun(const AppConfig *config, AppModuleFn registerGame) {
     RandomSeed(config->randomSeed);
   }
 
-  ecs_world_t *world = ecs_init();
-
-  // Order matters here and nowhere else: phases before the systems that pick
-  // one, components before the systems that query them.
-  PhasesRegister(world);
-  CoreComponentsRegister(world);
-  InputRegister(world);
-  PhysicsRegister(world);
-  GfxRegister(world, config->clearColor);
-  LifetimeRegister(world);
-
+  GfxSetClearColor(config->clearColor);
+  ecs_world_t *world = AppWorldCreate(true);
   registerGame(world);
 
   while (!ecs_singleton_get(world, Input)->quit) {
     ecs_progress(world, GetFrameTime());
   }
 
-  // Tearing down the world deletes every entity, which runs the PhysicsBody
-  // destructor on each one. The physics world has to outlive that, so it is
-  // destroyed second.
-  ecs_fini(world);
-  PhysicsShutdown();
+  AppWorldDestroy(world);
   CloseWindow();
   return 0;
 }
 
-void AppRequestQuit(ecs_world_t *world) { ecs_singleton_ensure(world, Input)->quit = true; }
+void AppRequestQuit(ecs_world_t *world) { ecs_singleton_get_mut(world, Input)->quit = true; }
