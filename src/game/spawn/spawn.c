@@ -69,11 +69,14 @@ void SpawnArena(ecs_world_t *world) {
       .mask = CATEGORY_PLAYER | CATEGORY_ENEMY | CATEGORY_BULLET,
   };
   ecs_entity_t floor = SpawnPhysical(world, &floorDesc);
-  // Drawn 2cm lower than it collides, so the grid lines at y = 0 do not fight
-  // with the floor surface for the same pixels.
-  ecs_set(world, floor, Position, {Vec3Make(0.0f, -floorHalf - 0.02f, 0.0f)});
+  // Position belongs to the physics body and is rewritten every frame, so the
+  // floor is sunk by drawing it thinner rather than by moving it. It keeps the
+  // same centre, so only the top face drops, which is the face the grid needs
+  // to clear.
   ecs_set(world, floor, BoxVisual,
-          {.size = Vec3Make(half * 2.0f, floorHalf * 2.0f, half * 2.0f), .color = COLOR_FLOOR});
+          {.size = Vec3Make(half * 2.0f, floorHalf * 2.0f - ARENA_FLOOR_VISUAL_SINK * 2.0f,
+                            half * 2.0f),
+           .color = COLOR_FLOOR});
 
   const float wallY = ARENA_WALL_HEIGHT * 0.5f;
   const float offset = half + ARENA_WALL_THICKNESS * 0.5f;

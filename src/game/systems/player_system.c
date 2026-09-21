@@ -3,6 +3,16 @@
 #include "game/components/components.h"
 #include "game/systems/systems.h"
 
+// Clears the tracker before it is refilled.
+//
+// This cannot be folded into the system below. flecs does not call a system
+// whose query matches nothing, so with no player left PlayerTrackSystem simply
+// would not run, and a stale entity id would sit in the singleton with three
+// systems still following it. This one has no query, so it always runs.
+static void PlayerTrackResetSystem(ecs_iter_t *it) {
+  ecs_singleton_get_mut(it->world, PlayerTracker)->entity = 0;
+}
+
 // Runs in PhaseTrack, before anything that wants to know about the player.
 // Writing it to a singleton once is what lets chasing, biting, the camera and
 // the HUD stay ignorant of how players are stored.
@@ -11,11 +21,6 @@ static void PlayerTrackSystem(ecs_iter_t *it) {
   const Health *health = ecs_field(it, Health, 1);
 
   PlayerTracker *tracker = ecs_singleton_get_mut(it->world, PlayerTracker);
-  if (it->count == 0) {
-    tracker->entity = 0;
-    return;
-  }
-
   tracker->entity = it->entities[0];
   tracker->position = positions[0].value;
   tracker->health = health[0].current;
@@ -49,6 +54,9 @@ static void PlayerControlSystem(ecs_iter_t *it) {
 }
 
 void PlayerSystemRegister(ecs_world_t *world) {
+  // Reset first: systems inside one phase run in the order they were
+  // registered, so the clear lands before the refill.
+  ECS_SYSTEM(world, PlayerTrackResetSystem, PhaseTrack, 0);
   ECS_SYSTEM(world, PlayerTrackSystem, PhaseTrack, [in] Position, [in] Health, Player);
   ECS_SYSTEM(world, PlayerControlSystem, PhaseLogic, [in] Position, [in] PhysicsBody,
              [in] MoveSpeed, Aim, Player);

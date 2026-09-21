@@ -30,15 +30,16 @@ static void DrawCrosshair(const Input *input) {
   GfxDrawLine2D(Vec2Make(at.x, at.y + 4), Vec2Make(at.x, at.y + 16), RAYWHITE);
 }
 
-// Returns true when the play again button was pressed.
+// Returns true when the play again button was pressed. The panel raygui draws
+// is light, so the text on it is dark.
 static bool DrawGameOver(const GameState *state) {
   int x = (GfxScreenWidth() - PANEL_WIDTH) / 2;
   int y = (GfxScreenHeight() - PANEL_HEIGHT) / 2;
 
   GfxDrawRect(0, 0, GfxScreenWidth(), GfxScreenHeight(), (Color){0, 0, 0, 160});
   GfxPanel((Rect){(float)x, (float)y, (float)PANEL_WIDTH, (float)PANEL_HEIGHT}, "#113#Game over");
-  GfxDrawText(GfxFormat("Score %d", state->score), x + 24, y + 50, 28, RAYWHITE);
-  GfxDrawText(GfxFormat("Reached wave %d", state->wave), x + 24, y + 88, 20, GRAY);
+  GfxDrawText(GfxFormat("Score %d", state->score), x + 24, y + 50, 28, COLOR_PANEL_TEXT);
+  GfxDrawText(GfxFormat("Reached wave %d", state->wave), x + 24, y + 88, 20, COLOR_PANEL_TEXT);
   return GfxButton((Rect){(float)(x + 24), (float)(y + 126), 160.0f, 36.0f}, "#77#Play again");
 }
 
@@ -67,9 +68,9 @@ static void HudSystem(ecs_iter_t *it) {
   }
 
   if (DrawGameOver(state)) {
-    // The button feeds the same restart flag the keyboard and pad use, so the
-    // restart system stays the only place a run is torn down.
-    ecs_singleton_get_mut(it->world, Input)->restart = true;
+    // Recorded rather than acted on, so the restart system stays the only
+    // place a run is ever torn down.
+    ecs_singleton_get_mut(it->world, GameState)->restartRequested = true;
   }
 }
 

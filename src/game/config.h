@@ -18,6 +18,16 @@
 #define ARENA_WALL_HEIGHT 2.5f
 #define ARENA_WALL_THICKNESS 1.0f
 #define ARENA_FLOOR_HALF_THICKNESS 0.5f
+// Ground markings, stacked clear of the floor and of each other.
+//
+// The gaps look absurd for something viewed from 30 metres up, and they have
+// to be. Depth precision is spent near the camera: with a near plane of 1cm
+// and a far plane a kilometre out, two surfaces a centimetre apart are the
+// same depth by the far wall, and the floor and the grid trade pixels in
+// bands. A tenth of a metre survives the whole arena and is invisible.
+#define ARENA_FLOOR_VISUAL_SINK 0.05f // Drawn this far below where it collides.
+#define ARENA_GRID_HEIGHT 0.05f
+#define AIM_LINE_HEIGHT 0.12f
 
 #define PLAYER_RADIUS 0.45f
 #define PLAYER_HALF_HEIGHT 0.45f
@@ -53,6 +63,8 @@
 #define COLOR_FLOOR ((Color){26, 30, 42, 255})
 #define COLOR_WALL ((Color){58, 68, 92, 255})
 #define COLOR_WALL_EDGE ((Color){44, 52, 70, 255})
+#define COLOR_GRID ((Color){48, 57, 78, 255})
+#define COLOR_PANEL_TEXT ((Color){28, 32, 40, 255})
 #define COLOR_PLAYER ((Color){90, 200, 255, 255})
 #define COLOR_ENEMY ((Color){235, 84, 84, 255})
 #define COLOR_ENEMY_HURT ((Color){245, 220, 220, 255})

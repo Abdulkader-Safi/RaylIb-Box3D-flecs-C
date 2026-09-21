@@ -108,7 +108,23 @@ int main(void) {
   }
   assert(state->wave == waveAtDeath);
 
-  // Restarting puts everything back, including the player's body.
+  // The game over panel's button restarts too, and it is the harder path: it
+  // is set while drawing at the end of a frame and has to survive PhaseInput
+  // overwriting the Input singleton at the start of the next one.
+  ecs_singleton_get_mut(world, GameState)->restartRequested = true;
+  PushInput(world, VEC2_ZERO, false, false);
+  ecs_progress(world, STEP);
+  assert(!state->over);
+  assert(!state->restartRequested);
+  assert(tracker->entity != 0);
+  assert(tracker->health == PLAYER_MAX_HEALTH);
+
+  // And so does the key, from a fresh run this time.
+  ecs_get_mut(world, tracker->entity, Health)->current = 0;
+  PushInput(world, VEC2_ZERO, false, false);
+  ecs_progress(world, STEP);
+  assert(state->over);
+
   PushInput(world, VEC2_ZERO, false, true);
   ecs_progress(world, STEP);
   assert(!state->over);

@@ -98,6 +98,14 @@ typedef struct GameState {
   int wave;
   float waveBreak; // Seconds left before the next wave walks in.
   bool over;
+
+  // Set by the game over panel, read by the restart system on the next frame.
+  //
+  // It cannot go on Input. The panel is drawn in PhaseDrawUI at the end of a
+  // frame, and PhaseInput overwrites the whole Input singleton at the start of
+  // the next one, which is before PhaseSpawn would ever see the flag. A key
+  // press has no such problem: it is polled and acted on in the same frame.
+  bool restartRequested;
 } GameState;
 
 extern ECS_COMPONENT_DECLARE(Health);

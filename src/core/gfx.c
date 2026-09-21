@@ -69,7 +69,16 @@ void GfxDrawCapsule(Vec3 bottom, Vec3 top, float radius, Color color) {
 
 void GfxDrawLine(Vec3 from, Vec3 to, Color color) { DrawLine3D(from, to, color); }
 
-void GfxDrawGrid(int slices, float spacing) { DrawGrid(slices, spacing); }
+void GfxDrawGrid(int slices, float spacing, float height, Color color) {
+  // raylib's DrawGrid is always at y = 0 and always its own colour, so the
+  // lines are drawn here instead.
+  float half = (float)slices * spacing * 0.5f;
+  for (int i = 0; i <= slices; ++i) {
+    float offset = -half + (float)i * spacing;
+    DrawLine3D((Vector3){offset, height, -half}, (Vector3){offset, height, half}, color);
+    DrawLine3D((Vector3){-half, height, offset}, (Vector3){half, height, offset}, color);
+  }
+}
 
 void GfxDrawText(const char *text, int x, int y, int size, Color color) {
   DrawText(text, x, y, size, color);

@@ -7,7 +7,12 @@
 
 static void RestartSystem(ecs_iter_t *it) {
   const Input *input = ecs_singleton_get(it->world, Input);
-  if (input->restart) {
+  const GameState *state = ecs_singleton_get(it->world, GameState);
+
+  // R and the pad's start button arrive on Input this frame; the panel's
+  // button arrives on GameState from the frame before. Both mean the same
+  // thing. SpawnFreshRun resets GameState, which clears the request with it.
+  if (input->restart || state->restartRequested) {
     SpawnFreshRun(it->world);
   }
 }

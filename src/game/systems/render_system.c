@@ -10,7 +10,7 @@
 
 static void GridSystem(ecs_iter_t *it) {
   (void)it;
-  GfxDrawGrid((int)(ARENA_HALF_EXTENT * 2.0f), 1.0f);
+  GfxDrawGrid((int)(ARENA_HALF_EXTENT * 2.0f), 1.0f, ARENA_GRID_HEIGHT, COLOR_GRID);
 }
 
 static void BoxRenderSystem(ecs_iter_t *it) {
@@ -58,7 +58,7 @@ static void AimRenderSystem(ecs_iter_t *it) {
     Vec3 barrelEnd = Vec3Add(centre, Vec3Scale(aims[i].direction, PLAYER_RADIUS + 0.7f));
     GfxDrawCapsule(barrelStart, barrelEnd, 0.12f, COLOR_BULLET);
 
-    Vec3 floorStart = Vec3Make(centre.x, 0.02f, centre.z);
+    Vec3 floorStart = Vec3Make(centre.x, AIM_LINE_HEIGHT, centre.z);
     GfxDrawLine(floorStart, Vec3Add(floorStart, Vec3Scale(aims[i].direction, 14.0f)), COLOR_AIM);
   }
 }

@@ -18,7 +18,10 @@ void GfxDrawBoxWires(Vec3 center, Vec3 size, Color color);
 void GfxDrawSphere(Vec3 center, float radius, Color color);
 void GfxDrawCapsule(Vec3 bottom, Vec3 top, float radius, Color color);
 void GfxDrawLine(Vec3 from, Vec3 to, Color color);
-void GfxDrawGrid(int slices, float spacing);
+// Lines on a horizontal plane at `height`. Ground markings have to be drawn
+// above the surface they mark, never level with it, or the two fight for the
+// same pixels and flicker as the camera moves.
+void GfxDrawGrid(int slices, float spacing, float height, Color color);
 
 // 2D, for systems in PhaseDrawUI.
 void GfxDrawText(const char *text, int x, int y, int size, Color color);

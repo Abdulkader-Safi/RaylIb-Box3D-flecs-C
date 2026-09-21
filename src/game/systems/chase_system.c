@@ -11,7 +11,17 @@ static void ChaseSystem(ecs_iter_t *it) {
   const MoveSpeed *speeds = ecs_field(it, MoveSpeed, 2);
 
   const PlayerTracker *tracker = ecs_singleton_get(it->world, PlayerTracker);
+  const GameState *state = ecs_singleton_get(it->world, GameState);
   if (tracker->entity == 0) {
+    return;
+  }
+
+  // Once the run is over the crowd stops where it stands, so the game over
+  // screen is something you read rather than something still moving.
+  if (state->over) {
+    for (int i = 0; i < it->count; ++i) {
+      PhysicsDriveHorizontal(bodies[i], VEC3_ZERO);
+    }
     return;
   }
 
