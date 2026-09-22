@@ -167,6 +167,7 @@ typedef struct GameState {
   float levelTime;
   bool hasKeycard;
   int menuIndex;   // Which row of the current menu is highlighted.
+  bool ignoreFireUntilRelease; // Set when a click dismissed a menu.
   bool over;
 
   // Set by the game over panel, read by the restart system on the next frame.

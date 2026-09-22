@@ -6,20 +6,8 @@
 #include "core/core.h"
 #include "game/components/components.h"
 #include "game/levels/levels.h"
+#include "game/systems/menu_layout.h"
 #include "game/systems/systems.h"
-
-// Rows on the title screen and the pause screen, in the order they are drawn.
-#define MENU_ROWS_TITLE 3
-#define MENU_ROWS_PAUSE 3
-
-static int MenuRowCount(GameMode mode) {
-  switch (mode) {
-  case MODE_MENU: return MENU_ROWS_TITLE;
-  case MODE_PAUSED: return MENU_ROWS_PAUSE;
-  case MODE_SETTINGS: return 3;
-  default: return 0;
-  }
-}
 
 static void StartRun(ecs_world_t *world, GameState *state) {
   state->score = 0;
@@ -76,6 +64,33 @@ static void ApplySettingsChoice(ecs_world_t *world, GameState *state, int direct
   }
 }
 
+// Hovering moves the highlight, clicking takes the row. Returns the direction
+// a click on a value row means: its left half counts as the left arrow key.
+//
+// The highlight only follows the mouse when the mouse actually moved, or a
+// cursor resting over a row would drag the selection back every time the
+// player used the keyboard.
+static int ReadMouseMenu(ecs_iter_t *it, GameState *state, bool *clicked) {
+  const Input *input = ecs_singleton_get(it->world, Input);
+  MenuLayout layout = MenuLayoutFor(state->mode);
+  *clicked = false;
+
+  if (layout.count == 0) {
+    return 1;
+  }
+
+  int hovered = MenuLayoutHit(&layout, input->aimScreen);
+  if (hovered >= 0 && input->mouseMoved) {
+    state->menuIndex = hovered;
+  }
+  if (hovered >= 0 && input->click) {
+    state->menuIndex = hovered;
+    *clicked = true;
+    return MenuLayoutSide(&layout, hovered, input->aimScreen);
+  }
+  return 1;
+}
+
 static void UpdateMode(ecs_iter_t *it, GameState *state) {
   const Input *input = ecs_singleton_get(it->world, Input);
 
@@ -91,19 +106,27 @@ static void UpdateMode(ecs_iter_t *it, GameState *state) {
     return;
   }
 
-  int rows = MenuRowCount(state->mode);
-  if (rows > 0) {
-    if (input->menuUp) state->menuIndex = (state->menuIndex + rows - 1) % rows;
-    if (input->menuDown) state->menuIndex = (state->menuIndex + 1) % rows;
+  MenuLayout layout = MenuLayoutFor(state->mode);
+  if (layout.count > 0) {
+    if (input->menuUp) state->menuIndex = (state->menuIndex + layout.count - 1) % layout.count;
+    if (input->menuDown) state->menuIndex = (state->menuIndex + 1) % layout.count;
+  }
+
+  bool clicked = false;
+  int clickDirection = ReadMouseMenu(it, state, &clicked);
+  if (clicked) {
+    // A click that starts or resumes the game would otherwise still be held
+    // down when the weapon system runs, and fire a shot on the way in.
+    state->ignoreFireUntilRelease = true;
   }
 
   switch (state->mode) {
   case MODE_MENU:
-    if (input->confirm) ApplyTitleChoice(it->world, state);
+    if (input->confirm || clicked) ApplyTitleChoice(it->world, state);
     break;
 
   case MODE_PAUSED:
-    if (input->confirm) ApplyPauseChoice(state);
+    if (input->confirm || clicked) ApplyPauseChoice(state);
     if (input->pause) state->mode = MODE_PLAYING;
     break;
 
@@ -111,6 +134,9 @@ static void UpdateMode(ecs_iter_t *it, GameState *state) {
     if (input->menuLeft) ApplySettingsChoice(it->world, state, -1);
     if (input->menuRight) ApplySettingsChoice(it->world, state, 1);
     if (input->confirm) ApplySettingsChoice(it->world, state, 1);
+    // Clicking the left half of a value row is the left arrow, the right half
+    // the right arrow. On Back, either half just means Back.
+    if (clicked) ApplySettingsChoice(it->world, state, clickDirection);
     if (input->pause) {
       SettingsSave(it->world);
       state->mode = state->modeBeforeSettings;
@@ -119,7 +145,7 @@ static void UpdateMode(ecs_iter_t *it, GameState *state) {
     break;
 
   case MODE_LEVEL_CLEARED:
-    if (input->confirm) {
+    if (input->confirm || input->click) {
       int next = state->levelIndex + 1;
       if (next >= LevelCount()) {
         state->mode = MODE_RUN_COMPLETE;
@@ -131,7 +157,7 @@ static void UpdateMode(ecs_iter_t *it, GameState *state) {
     break;
 
   case MODE_GAME_OVER:
-    if (input->confirm || input->restart) {
+    if (input->confirm || input->click || input->restart) {
       state->over = false;
       state->mode = MODE_PLAYING;
       LevelLoad(it->world, state->levelIndex);
@@ -139,7 +165,7 @@ static void UpdateMode(ecs_iter_t *it, GameState *state) {
     break;
 
   case MODE_RUN_COMPLETE:
-    if (input->confirm) {
+    if (input->confirm || input->click) {
       state->mode = MODE_MENU;
       state->menuIndex = 0;
     }
@@ -152,6 +178,13 @@ static void UpdateMode(ecs_iter_t *it, GameState *state) {
 
 static void ModeSystem(ecs_iter_t *it) {
   GameState *state = ecs_singleton_get_mut(it->world, GameState);
+  const Input *input = ecs_singleton_get(it->world, Input);
+
+  // Once the button that dismissed a menu is let go, shooting is fair again.
+  if (!input->fire) {
+    state->ignoreFireUntilRelease = false;
+  }
+
   UpdateMode(it, state);
 
   // Everything except play is a still picture, so the simulation stops. This

@@ -29,7 +29,10 @@ void SettingsRegister(ecs_world_t *world);
 int SettingsResolutionCount(void);
 Resolution SettingsResolutionAt(int index);
 
-// Resizes the window. Ignored on the web, where the page decides the size.
+// Puts the stored settings on the window. Call it once after loading, or the
+// saved choices are remembered and never acted on.
+void SettingsApply(const ecs_world_t *world);
+
 void SettingsApplyResolution(ecs_world_t *world, int index);
 void SettingsToggleFullscreen(ecs_world_t *world);
 

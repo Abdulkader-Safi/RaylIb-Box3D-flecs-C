@@ -82,6 +82,7 @@ set(GAME_SOURCES
     src/game/systems/door_system.c
     src/game/systems/exit_system.c
     src/game/systems/hud_system.c
+    src/game/systems/menu_layout.c
     src/game/systems/mode_system.c
     src/game/systems/pickup_system.c
     src/game/systems/player_system.c

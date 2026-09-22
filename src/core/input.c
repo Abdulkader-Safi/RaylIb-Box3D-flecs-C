@@ -72,6 +72,9 @@ static void InputPollSystem(ecs_iter_t *it) {
   }
 
   input->aimScreen = GetMousePosition();
+  input->click = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+  Vector2 delta = GetMouseDelta();
+  input->mouseMoved = delta.x != 0.0f || delta.y != 0.0f;
   // Pushing the right stick is the shoot gesture on a pad, the way twin stick
   // games have always done it.
   input->fire = input->aimIsStick || IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsKeyDown(KEY_SPACE);

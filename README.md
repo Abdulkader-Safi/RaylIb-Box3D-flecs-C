@@ -22,8 +22,12 @@ exit. Kill things for coins, and pick up what they drop.
 | Aim             | Mouse                | Right stick |
 | Fire            | Left click           | Right stick |
 | Pause           | Escape or P          | Start       |
-| Menus           | W and S, Enter       | D-pad, A    |
+| Menus           | Click, or W/S, Enter | D-pad, A    |
 | Restart level   | R                    |             |
+
+Menus take the mouse: hovering highlights a row and clicking takes it. On the
+settings screen, clicking the left or right half of a row does what the left
+and right arrow keys do.
 
 Pushing the right stick both aims and fires, so it takes a firm push to
 register. A stick resting slightly off centre would otherwise hold the trigger

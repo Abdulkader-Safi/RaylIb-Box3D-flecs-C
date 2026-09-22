@@ -40,6 +40,8 @@ typedef struct Input {
   // so a held key does not run down a list of options.
   bool pause;
   bool confirm;
+  bool click;      // Left button, the frame it went down.
+  bool mouseMoved; // So hovering only steals the menu highlight when it moves.
   bool menuUp;
   bool menuDown;
   bool menuLeft;

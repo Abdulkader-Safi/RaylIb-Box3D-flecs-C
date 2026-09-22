@@ -30,13 +30,14 @@ void SettingsRegister(ecs_world_t *world) {
   ecs_singleton_set(world, Settings, {.resolutionIndex = 0, .fullscreen = false});
 }
 
-void SettingsApplyResolution(ecs_world_t *world, int index) {
-  Settings *settings = ecs_singleton_get_mut(world, Settings);
-  settings->resolutionIndex = index;
-  if (settings->fullscreen) {
+// Resizing while fullscreen would fight the monitor, so the stored size is
+// only put on the window when there is a window to put it on.
+static void ApplyWindowedSize(int index) {
+  // A world built without presentation has no window to resize. The settings
+  // still track what was chosen, they just have nothing to put it on.
+  if (!IsWindowReady() || IsWindowFullscreen()) {
     return;
   }
-
   Resolution resolution = SettingsResolutionAt(index);
   SetWindowSize(resolution.width, resolution.height);
   // Re-centre, or a window that grew past the screen edge ends up half off it.
@@ -45,18 +46,43 @@ void SettingsApplyResolution(ecs_world_t *world, int index) {
                     (GetMonitorHeight(monitor) - resolution.height) / 2);
 }
 
+// raylib only offers a toggle, so setting a state means checking it first.
+// Real fullscreen and not borderless: on macOS a borderless window the size of
+// the screen still sits under the menu bar, which is not what anyone means by
+// fullscreen.
+static void ApplyFullscreen(bool wanted) {
+  if (!IsWindowReady() || IsWindowFullscreen() == wanted) {
+    return;
+  }
+  ToggleFullscreen();
+}
+
+void SettingsApply(const ecs_world_t *world) {
+  const Settings *settings = ecs_singleton_get(world, Settings);
+  ApplyFullscreen(settings->fullscreen);
+  ApplyWindowedSize(settings->resolutionIndex);
+}
+
+void SettingsApplyResolution(ecs_world_t *world, int index) {
+  ecs_singleton_get_mut(world, Settings)->resolutionIndex = index;
+  ApplyWindowedSize(index);
+}
+
 void SettingsToggleFullscreen(ecs_world_t *world) {
   Settings *settings = ecs_singleton_get_mut(world, Settings);
   settings->fullscreen = !settings->fullscreen;
-  // Borderless rather than exclusive fullscreen: it switches instantly and
-  // alt-tabs without the display mode changing under you.
-  ToggleBorderlessWindowed();
+  ApplyFullscreen(settings->fullscreen);
   if (!settings->fullscreen) {
-    SettingsApplyResolution(world, settings->resolutionIndex);
+    ApplyWindowedSize(settings->resolutionIndex);
   }
 }
 
 void SettingsSave(const ecs_world_t *world) {
+  // A world with no window never applied these to anything, so it has no
+  // business overwriting what the player chose the last time they played.
+  if (!IsWindowReady()) {
+    return;
+  }
   const Settings *settings = ecs_singleton_get(world, Settings);
   char buffer[128];
   snprintf(buffer, sizeof(buffer), "resolution %d\nfullscreen %d\n", settings->resolutionIndex,
@@ -65,7 +91,7 @@ void SettingsSave(const ecs_world_t *world) {
 }
 
 void SettingsLoad(ecs_world_t *world) {
-  if (!FileExists(SETTINGS_FILE)) {
+  if (!IsWindowReady() || !FileExists(SETTINGS_FILE)) {
     return;
   }
 
@@ -78,9 +104,8 @@ void SettingsLoad(ecs_world_t *world) {
   int fullscreen = 0;
   if (sscanf(text, "resolution %d fullscreen %d", &resolutionIndex, &fullscreen) == 2) {
     Settings *settings = ecs_singleton_get_mut(world, Settings);
-    settings->resolutionIndex = (resolutionIndex < 0 || resolutionIndex >= RESOLUTION_COUNT)
-                                    ? 0
-                                    : resolutionIndex;
+    settings->resolutionIndex =
+        (resolutionIndex < 0 || resolutionIndex >= RESOLUTION_COUNT) ? 0 : resolutionIndex;
     settings->fullscreen = fullscreen != 0;
   }
   UnloadFileText(text);

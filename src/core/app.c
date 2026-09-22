@@ -51,6 +51,7 @@ int AppRun(const AppConfig *config, AppModuleFn registerGame) {
   GfxSetClearColor(config->clearColor);
   ecs_world_t *world = AppWorldCreate(true);
   SettingsLoad(world);
+  SettingsApply(world);
   registerGame(world);
 
   while (!ecs_singleton_get(world, Input)->quit) {

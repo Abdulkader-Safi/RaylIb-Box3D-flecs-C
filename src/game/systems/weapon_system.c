@@ -36,7 +36,8 @@ static void WeaponFireSystem(ecs_iter_t *it) {
     if (weapons[i].cooldown > 0.0f) {
       weapons[i].cooldown -= it->delta_time;
     }
-    if (state->mode != MODE_PLAYING || !input->fire || weapons[i].cooldown > 0.0f) {
+    if (state->mode != MODE_PLAYING || !input->fire || state->ignoreFireUntilRelease ||
+        weapons[i].cooldown > 0.0f) {
       continue;
     }
     if (shotCount == MAX_SHOTS_PER_FRAME) {

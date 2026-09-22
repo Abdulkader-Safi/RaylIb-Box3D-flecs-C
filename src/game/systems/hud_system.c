@@ -5,20 +5,34 @@
 #include "game/components/components.h"
 #include "game/config.h"
 #include "game/levels/levels.h"
+#include "game/systems/menu_layout.h"
 #include "game/systems/systems.h"
 
-#define ROW_HEIGHT 38
 
 static void DrawDim(void) {
   GfxDrawRect(0, 0, GfxScreenWidth(), GfxScreenHeight(), COLOR_MENU_DIM);
 }
 
-// One row of a menu. The highlighted row gets a marker rather than a colour
-// change alone, so it reads without relying on the player seeing the tint.
-static void DrawMenuRow(const char *label, int index, int selected, int y) {
+// One row of a menu, drawn inside the rectangle the mouse is tested against.
+// The highlighted row gets a band and a marker, not just a colour, so it reads
+// without relying on the player picking up the tint.
+static void DrawMenuRow(const MenuLayout *layout, int index, int selected, const char *label) {
+  if (index >= layout->count) {
+    return;
+  }
+  Rect row = layout->rows[index];
   bool active = index == selected;
+
+  if (active) {
+    GfxDrawRect((int)row.x, (int)row.y, (int)row.width, (int)row.height, (Color){255, 255, 255, 18});
+  }
+
   const char *text = GfxFormat("%s %s", active ? ">" : " ", label);
-  GfxDrawTextCentered(text, y, 28, active ? COLOR_BULLET : GRAY);
+  // Centred inside the row rather than on the screen, so the text always sits
+  // in the box that responds to the click.
+  int textX = (int)(row.x + (row.width - (float)GfxMeasureText(text, MENU_TEXT_SIZE)) * 0.5f);
+  int textY = (int)(row.y + (row.height - (float)MENU_TEXT_SIZE) * 0.5f);
+  GfxDrawText(text, textX, textY, MENU_TEXT_SIZE, active ? COLOR_BULLET : GRAY);
 }
 
 static void DrawTitle(const GameState *state) {
@@ -26,22 +40,22 @@ static void DrawTitle(const GameState *state) {
   GfxDrawTextCentered("TWIN STICK", 110, 72, RAYWHITE);
   GfxDrawTextCentered("raylib  .  Box3D  .  flecs", 190, 20, GRAY);
 
-  int y = GfxScreenHeight() / 2 - ROW_HEIGHT;
-  DrawMenuRow("Start run", 0, state->menuIndex, y);
-  DrawMenuRow("Settings", 1, state->menuIndex, y + ROW_HEIGHT);
-  DrawMenuRow("Quit", 2, state->menuIndex, y + ROW_HEIGHT * 2);
+  MenuLayout layout = MenuLayoutFor(MODE_MENU);
+  DrawMenuRow(&layout, 0, state->menuIndex, "Start run");
+  DrawMenuRow(&layout, 1, state->menuIndex, "Settings");
+  DrawMenuRow(&layout, 2, state->menuIndex, "Quit");
 
-  GfxDrawTextCentered("W and S to move   .   Enter to choose", GfxScreenHeight() - 70, 18, GRAY);
+  GfxDrawTextCentered("Click, or W and S and Enter", GfxScreenHeight() - 70, 18, GRAY);
 }
 
 static void DrawPause(const GameState *state) {
   DrawDim();
   GfxDrawTextCentered("PAUSED", 140, 56, RAYWHITE);
 
-  int y = GfxScreenHeight() / 2 - ROW_HEIGHT;
-  DrawMenuRow("Resume", 0, state->menuIndex, y);
-  DrawMenuRow("Settings", 1, state->menuIndex, y + ROW_HEIGHT);
-  DrawMenuRow("Quit to title", 2, state->menuIndex, y + ROW_HEIGHT * 2);
+  MenuLayout layout = MenuLayoutFor(MODE_PAUSED);
+  DrawMenuRow(&layout, 0, state->menuIndex, "Resume");
+  DrawMenuRow(&layout, 1, state->menuIndex, "Settings");
+  DrawMenuRow(&layout, 2, state->menuIndex, "Quit to title");
 
   GfxDrawTextCentered("Escape to resume", GfxScreenHeight() - 70, 18, GRAY);
 }
@@ -53,14 +67,14 @@ static void DrawSettings(ecs_world_t *world, const GameState *state) {
   DrawDim();
   GfxDrawTextCentered("SETTINGS", 140, 56, RAYWHITE);
 
-  int y = GfxScreenHeight() / 2 - ROW_HEIGHT;
-  DrawMenuRow(GfxFormat("Resolution    < %s >", resolution.label), 0, state->menuIndex, y);
-  DrawMenuRow(GfxFormat("Fullscreen    < %s >", settings->fullscreen ? "on" : "off"), 1,
-              state->menuIndex, y + ROW_HEIGHT);
-  DrawMenuRow("Back", 2, state->menuIndex, y + ROW_HEIGHT * 2);
+  MenuLayout layout = MenuLayoutFor(MODE_SETTINGS);
+  DrawMenuRow(&layout, 0, state->menuIndex, GfxFormat("Resolution    < %s >", resolution.label));
+  DrawMenuRow(&layout, 1, state->menuIndex,
+              GfxFormat("Fullscreen    < %s >", settings->fullscreen ? "on" : "off"));
+  DrawMenuRow(&layout, 2, state->menuIndex, "Back");
 
-  GfxDrawTextCentered("A and D to change   .   Escape to go back", GfxScreenHeight() - 70, 18,
-                      GRAY);
+  GfxDrawTextCentered("Click either side of a row to change it   .   Escape to go back",
+                      GfxScreenHeight() - 70, 18, GRAY);
 }
 
 static void DrawLevelCleared(const GameState *state) {
@@ -71,7 +85,8 @@ static void DrawLevelCleared(const GameState *state) {
   GfxDrawTextCentered(GfxFormat("Time %.1fs    Coins %d    Score %d", state->levelTime,
                                 state->coins, state->score),
                       GfxScreenHeight() / 2, 24, GRAY);
-  GfxDrawTextCentered("Enter for the next level", GfxScreenHeight() / 2 + 60, 24, COLOR_BULLET);
+  GfxDrawTextCentered("Click or press Enter for the next level", GfxScreenHeight() / 2 + 60, 24,
+                      COLOR_BULLET);
 }
 
 static void DrawGameOver(const GameState *state) {
@@ -79,7 +94,8 @@ static void DrawGameOver(const GameState *state) {
   GfxDrawTextCentered("YOU DIED", 150, 56, COLOR_ENEMY);
   GfxDrawTextCentered(GfxFormat("Score %d    Coins %d", state->score, state->coins),
                       GfxScreenHeight() / 2, 24, RAYWHITE);
-  GfxDrawTextCentered("Enter to retry this level", GfxScreenHeight() / 2 + 60, 24, COLOR_BULLET);
+  GfxDrawTextCentered("Click or press Enter to retry this level", GfxScreenHeight() / 2 + 60, 24,
+                      COLOR_BULLET);
 }
 
 static void DrawRunComplete(const GameState *state) {
@@ -87,8 +103,8 @@ static void DrawRunComplete(const GameState *state) {
   GfxDrawTextCentered("RUN COMPLETE", 150, 56, COLOR_EXIT);
   GfxDrawTextCentered(GfxFormat("Final score %d    Coins %d", state->score, state->coins),
                       GfxScreenHeight() / 2, 26, RAYWHITE);
-  GfxDrawTextCentered("Enter to return to the title", GfxScreenHeight() / 2 + 60, 24,
-                      COLOR_BULLET);
+  GfxDrawTextCentered("Click or press Enter to return to the title", GfxScreenHeight() / 2 + 60,
+                      24, COLOR_BULLET);
 }
 
 static void DrawHealthBar(const PlayerTracker *tracker, const Powerups *powerups) {

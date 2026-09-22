@@ -9,6 +9,7 @@
 #include "game/config.h"
 #include "game/game.h"
 #include "game/levels/levels.h"
+#include "game/systems/menu_layout.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -25,6 +26,36 @@ static void PushInput(ecs_world_t *world, Vec2 aimStick, bool fire) {
   input->aimIsStick = true;
   input->aimStick = aimStick;
   input->fire = fire;
+}
+
+// Clicks the middle of a menu row, the way a mouse would. The layout comes
+// from the same function the HUD draws with, so this fails if the two ever
+// stop agreeing about where a row is.
+static void ClickMenuRow(ecs_world_t *world, GameMode mode, int row) {
+  MenuLayout layout = MenuLayoutFor(mode);
+  assert(row < layout.count);
+  Rect bounds = layout.rows[row];
+
+  Input *input = ecs_singleton_get_mut(world, Input);
+  memset(input, 0, sizeof(*input));
+  input->aimScreen = Vec2Make(bounds.x + bounds.width * 0.5f, bounds.y + bounds.height * 0.5f);
+  input->click = true;
+  input->mouseMoved = true;
+}
+
+// Clicks the left or right half of a row, which is how the settings arrows
+// work under the mouse.
+static void ClickMenuRowSide(ecs_world_t *world, GameMode mode, int row, int side) {
+  MenuLayout layout = MenuLayoutFor(mode);
+  assert(row < layout.count);
+  Rect bounds = layout.rows[row];
+  float x = side < 0 ? bounds.x + bounds.width * 0.25f : bounds.x + bounds.width * 0.75f;
+
+  Input *input = ecs_singleton_get_mut(world, Input);
+  memset(input, 0, sizeof(*input));
+  input->aimScreen = Vec2Make(x, bounds.y + bounds.height * 0.5f);
+  input->click = true;
+  input->mouseMoved = true;
 }
 
 static void PressConfirm(ecs_world_t *world) {
@@ -280,10 +311,45 @@ int main(void) {
   assert(Vec3Distance(restingPosition, tracker->position) < 0.01f);
   assert(ClockIsPaused(world));
 
+  // The menus take the mouse. Clicking Settings on the title screen opens it,
+  // clicking the right half of the resolution row steps through the list, and
+  // Back returns to where it came from.
+  int resolutionBefore = ecs_singleton_get(world, Settings)->resolutionIndex;
+  ClickMenuRow(world, MODE_MENU, 1);
+  ecs_progress(world, STEP);
+  assert(state->mode == MODE_SETTINGS);
+
+  ClickMenuRowSide(world, MODE_SETTINGS, 0, 1);
+  ecs_progress(world, STEP);
+  assert(ecs_singleton_get(world, Settings)->resolutionIndex !=
+         resolutionBefore || SettingsResolutionCount() == 1);
+
+  ClickMenuRow(world, MODE_SETTINGS, 2);
+  ecs_progress(world, STEP);
+  assert(state->mode == MODE_MENU);
+
+  // Hovering moves the highlight without clicking anything.
+  {
+    MenuLayout layout = MenuLayoutFor(MODE_MENU);
+    Input *hover = ecs_singleton_get_mut(world, Input);
+    memset(hover, 0, sizeof(*hover));
+    hover->aimScreen = Vec2Make(layout.rows[2].x + layout.rows[2].width * 0.5f,
+                                layout.rows[2].y + layout.rows[2].height * 0.5f);
+    hover->mouseMoved = true;
+  }
+  ecs_progress(world, STEP);
+  assert(state->menuIndex == 2);
+  assert(state->mode == MODE_MENU);
+
   // Start run is the first row of the title menu.
-  PressConfirm(world);
+  ClickMenuRow(world, MODE_MENU, 0);
   ecs_progress(world, STEP);
   assert(state->mode == MODE_PLAYING);
+  // The click that started the game must not also pull the trigger. Letting
+  // the button go hands shooting back.
+  assert(state->ignoreFireUntilRelease);
+  Idle(world, 1);
+  assert(!state->ignoreFireUntilRelease);
   assert(!ClockIsPaused(world));
   assert(state->levelIndex == 0);
   assert(!state->hasKeycard);
