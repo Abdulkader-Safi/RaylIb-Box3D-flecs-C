@@ -131,20 +131,33 @@ typedef struct TierStats {
   int damage;
   int coins;
   Color color;
+  float sight;
+  float hearing;
+  float memory;
+  bool wanders; // Light ones pace about; the heavy ones hold their ground.
 } TierStats;
 
 static TierStats StatsFor(EnemyTier tier) {
   switch (tier) {
   case ENEMY_LIGHT:
-    return (TierStats){ENEMY_LIGHT_RADIUS, ENEMY_LIGHT_HEALTH, ENEMY_LIGHT_SPEED,
-                       ENEMY_LIGHT_DAMAGE, ENEMY_LIGHT_COINS, COLOR_ENEMY_LIGHT};
+    // Jumpy. Hears a long way, gives up quickly, never stands still.
+    return (TierStats){ENEMY_LIGHT_RADIUS,  ENEMY_LIGHT_HEALTH, ENEMY_LIGHT_SPEED,
+                       ENEMY_LIGHT_DAMAGE,  ENEMY_LIGHT_COINS,  COLOR_ENEMY_LIGHT,
+                       ENEMY_LIGHT_SIGHT,   ENEMY_LIGHT_HEARING, ENEMY_LIGHT_MEMORY,
+                       true};
   case ENEMY_HEAVY:
-    return (TierStats){ENEMY_HEAVY_RADIUS, ENEMY_HEAVY_HEALTH, ENEMY_HEAVY_SPEED,
-                       ENEMY_HEAVY_DAMAGE, ENEMY_HEAVY_COINS, COLOR_ENEMY_HEAVY};
+    // Half deaf and slow, but it does not forget, and it guards its patch.
+    return (TierStats){ENEMY_HEAVY_RADIUS,  ENEMY_HEAVY_HEALTH, ENEMY_HEAVY_SPEED,
+                       ENEMY_HEAVY_DAMAGE,  ENEMY_HEAVY_COINS,  COLOR_ENEMY_HEAVY,
+                       ENEMY_HEAVY_SIGHT,   ENEMY_HEAVY_HEARING, ENEMY_HEAVY_MEMORY,
+                       false};
   case ENEMY_MEDIUM:
   default:
-    return (TierStats){ENEMY_MEDIUM_RADIUS, ENEMY_MEDIUM_HEALTH, ENEMY_MEDIUM_SPEED,
-                       ENEMY_MEDIUM_DAMAGE, ENEMY_MEDIUM_COINS, COLOR_ENEMY_MEDIUM};
+    // The middle of everything, and the best pair of eyes.
+    return (TierStats){ENEMY_MEDIUM_RADIUS,  ENEMY_MEDIUM_HEALTH, ENEMY_MEDIUM_SPEED,
+                       ENEMY_MEDIUM_DAMAGE,  ENEMY_MEDIUM_COINS,  COLOR_ENEMY_MEDIUM,
+                       ENEMY_MEDIUM_SIGHT,   ENEMY_MEDIUM_HEARING, ENEMY_MEDIUM_MEMORY,
+                       true};
   }
 }
 
@@ -173,6 +186,16 @@ ecs_entity_t SpawnEnemy(ecs_world_t *world, Vec3 position, EnemyTier tier) {
               .cooldown = 0.0f,
               .damage = stats.damage,
               .range = PLAYER_RADIUS + stats.radius + 0.35f,
+          });
+  ecs_set(world, enemy, Senses,
+          {.sight = stats.sight, .hearing = stats.hearing, .memory = stats.memory});
+  ecs_set(world, enemy, Brain,
+          {
+              .state = stats.wanders ? AI_PATROL : AI_GUARD,
+              .wandering = stats.wanders,
+              .wanderTarget = position,
+              // Staggered so a room full of them does not think in lockstep.
+              .repathTimer = RandomFloat(0.0f, 1.0f),
           });
   ecs_set(world, enemy, CapsuleVisual,
           {.radius = stats.radius, .halfHeight = stats.radius, .color = stats.color});

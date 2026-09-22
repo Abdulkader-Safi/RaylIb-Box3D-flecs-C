@@ -19,7 +19,7 @@ static void RegisterSimulation(ecs_world_t *world) {
   SpawnerSystemRegister(world);
   PlayerSystemRegister(world);
   WeaponSystemRegister(world);
-  ChaseSystemRegister(world);
+  AiSystemRegister(world);
   BiteSystemRegister(world);
   PickupSystemRegister(world);
   ExitSystemRegister(world);

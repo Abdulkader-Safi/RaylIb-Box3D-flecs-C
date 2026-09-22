@@ -40,6 +40,14 @@ typedef enum EnemyTier {
   ENEMY_HEAVY,
 } EnemyTier;
 
+// What an enemy is currently doing about the player.
+typedef enum AiState {
+  AI_GUARD,       // Has noticed nothing. Holds its ground.
+  AI_PATROL,      // Has noticed nothing, but will not stand still about it.
+  AI_INVESTIGATE, // Heard something, or lost sight. Goes to look.
+  AI_CHASE,       // Can see the player right now.
+} AiState;
+
 typedef enum PickupKind {
   PICKUP_COIN,
   PICKUP_HEALTH,
@@ -77,6 +85,30 @@ typedef struct Damage {
   int amount;
   float knockback;
 } Damage;
+
+// What an enemy can notice. Nothing reads the player's position directly.
+typedef struct Senses {
+  float sight;   // Needs a clear line as well as the range.
+  float hearing; // Carries through walls.
+  float memory;  // Seconds it keeps hunting after losing the player.
+} Senses;
+
+// What it is doing about what it noticed.
+typedef struct Brain {
+  AiState state;
+  float alertTimer;  // Above zero means it still cares.
+  float repathTimer; // Staggered so they do not all think on the same frame.
+  Vec3 wanderTarget;
+  bool wandering;
+} Brain;
+
+// The last thing anything heard, shared by every enemy. One gunshot should
+// pull the whole room, not just whoever happened to be looking.
+typedef struct Alert {
+  Vec3 position;
+  float timer;
+  bool active;
+} Alert;
 
 // What an enemy is worth when it dies.
 typedef struct Loot {
@@ -165,6 +197,7 @@ typedef struct GameState {
   int score;
   int coins;
   float levelTime;
+  float navTimer; // Counts down to the next rebuild of the shared routes.
   bool hasKeycard;
   int menuIndex;   // Which row of the current menu is highlighted.
   bool ignoreFireUntilRelease; // Set when a click dismissed a menu.
@@ -179,6 +212,9 @@ typedef struct GameState {
   bool restartRequested;
 } GameState;
 
+extern ECS_COMPONENT_DECLARE(Senses);
+extern ECS_COMPONENT_DECLARE(Brain);
+extern ECS_COMPONENT_DECLARE(Alert);
 extern ECS_COMPONENT_DECLARE(Loot);
 extern ECS_COMPONENT_DECLARE(Pickup);
 extern ECS_COMPONENT_DECLARE(Powerups);

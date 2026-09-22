@@ -61,6 +61,15 @@ static void WeaponFireSystem(ecs_iter_t *it) {
   for (int i = 0; i < shotCount; ++i) {
     SpawnBullet(it->world, shots[i].muzzle, shots[i].direction, &shots[i].weapon);
   }
+
+  // Shooting tells the room where you are. It is the main way a player gives
+  // themselves away, and the main reason to stop shooting.
+  if (shotCount > 0) {
+    Alert *alert = ecs_singleton_get_mut(it->world, Alert);
+    alert->position = shots[shotCount - 1].muzzle;
+    alert->timer = ALERT_SECONDS;
+    alert->active = true;
+  }
 }
 
 void WeaponSystemRegister(ecs_world_t *world) {

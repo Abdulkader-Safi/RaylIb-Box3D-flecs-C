@@ -1,6 +1,7 @@
 // Turns a grid of characters into entities.
 #include "game/levels/levels.h"
 
+#include "game/ai/nav.h"
 #include "game/components/components.h"
 #include "game/config.h"
 #include "game/spawn/spawn.h"
@@ -95,6 +96,7 @@ void LevelLoad(ecs_world_t *world, int index) {
   ecs_delete_with(world, Spawned);
 
   const Level *level = LevelAt(index);
+  NavSetLevel(level);
 
   BuildRuns(world, level, MatchFloor, ARENA_FLOOR_HALF_THICKNESS * 2.0f,
             -ARENA_FLOOR_HALF_THICKNESS - 0.05f, COLOR_FLOOR, false);
@@ -110,6 +112,7 @@ void LevelLoad(ecs_world_t *world, int index) {
 
   BuildContents(world, level);
 
+  ecs_singleton_set(world, Alert, {0});
   ecs_singleton_set(world, LevelBounds,
                     {Vec3Make((float)level->width * TILE_SIZE * 0.5f, 0.0f,
                               (float)level->height * TILE_SIZE * 0.5f)});

@@ -70,13 +70,14 @@ set(CORE_SOURCES
 # that build entities.
 set(GAME_SOURCES
     src/game/game.c
+    src/game/ai/nav.c
     src/game/components/components.c
     src/game/levels/level_build.c
     src/game/levels/level_data.c
     src/game/spawn/spawn.c
     src/game/systems/bite_system.c
     src/game/systems/camera_system.c
-    src/game/systems/chase_system.c
+    src/game/systems/ai_system.c
     src/game/systems/combat_system.c
     src/game/systems/death_system.c
     src/game/systems/door_system.c

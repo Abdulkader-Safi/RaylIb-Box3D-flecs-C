@@ -8,6 +8,9 @@ ECS_DECLARE(Exit);
 ECS_DECLARE(Keycard);
 ECS_DECLARE(Spawned);
 
+ECS_COMPONENT_DECLARE(Senses);
+ECS_COMPONENT_DECLARE(Brain);
+ECS_COMPONENT_DECLARE(Alert);
 ECS_COMPONENT_DECLARE(Loot);
 ECS_COMPONENT_DECLARE(Pickup);
 ECS_COMPONENT_DECLARE(Powerups);
@@ -35,6 +38,9 @@ void GameComponentsRegister(ecs_world_t *world) {
   ECS_TAG_DEFINE(world, Keycard);
   ECS_TAG_DEFINE(world, Spawned);
 
+  ECS_COMPONENT_DEFINE(world, Senses);
+  ECS_COMPONENT_DEFINE(world, Brain);
+  ECS_COMPONENT_DEFINE(world, Alert);
   ECS_COMPONENT_DEFINE(world, Loot);
   ECS_COMPONENT_DEFINE(world, Pickup);
   ECS_COMPONENT_DEFINE(world, Powerups);
@@ -53,6 +59,7 @@ void GameComponentsRegister(ecs_world_t *world) {
   ECS_COMPONENT_DEFINE(world, PlayerTracker);
   ECS_COMPONENT_DEFINE(world, GameState);
 
+  ecs_singleton_set(world, Alert, {0});
   ecs_singleton_set(world, LevelBounds, {0});
   ecs_singleton_set(world, PlayerTracker, {0});
   ecs_singleton_set(world, GameState, {0});

@@ -160,6 +160,39 @@ not drift with frame rate. Contact events describe only the step that just ran,
 so they are drained inside the stepping loop. Draining after it would lose every
 hit that happened during a catch-up step.
 
+## What the enemies know
+
+Nothing reads the player's position and walks at it. An enemy acts only on what
+it can see, in range and with a clear line, or on what it has heard. Firing is
+the loud thing, which makes stopping firing a real decision.
+
+Routes come from `src/game/ai/nav.c`. Every enemy wants the same thing, so a
+single breadth first sweep fills in how many tiles each square is from the
+player, and an enemy only has to step to the lowest neighbour. Twenty enemies
+cost the same as one. A second sweep runs from the last thing anything heard,
+which is where they go once they have lost you but not forgotten. Diagonal
+steps need both of the squares they cut between to be open, so nobody slips
+through the corner where two walls meet.
+
+An enemy behind a shut door has no route at all, and stands rather than
+grinding into it. That falls out of the search rather than being a special
+case.
+
+Four states, and they form a loop:
+
+| State         | Meaning                                              |
+| ------------- | ---------------------------------------------------- |
+| `AI_GUARD`    | Noticed nothing, holds its ground                    |
+| `AI_PATROL`   | Noticed nothing, wanders anyway                      |
+| `AI_INVESTIGATE` | Heard something or lost sight, goes to look       |
+| `AI_CHASE`    | Can see the player right now                         |
+
+The tiers differ by what they notice, not by what they do. Light ones hear a
+long way, forget quickly and pace about. Heavy ones are half deaf and slow, but
+they remember for fourteen seconds and guard their patch. Medium has the best
+eyes. All of it is `Senses` and `Brain` on the entity, so a new kind of enemy
+is a new row in the table in `spawn.c`.
+
 ## Writing a level
 
 `src/game/levels/level_data.c`. A level is a grid of characters and a width and

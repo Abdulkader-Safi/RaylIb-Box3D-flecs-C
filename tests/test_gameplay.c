@@ -9,6 +9,7 @@
 #include "game/config.h"
 #include "game/game.h"
 #include "game/levels/levels.h"
+#include "game/ai/nav.h"
 #include "game/systems/menu_layout.h"
 
 #include <assert.h>
@@ -353,6 +354,116 @@ int main(void) {
   assert(!ClockIsPaused(world));
   assert(state->levelIndex == 0);
   assert(!state->hasKeycard);
+
+  // ---------------------------------------------------------------- the AI
+  //
+  // The rule that matters: an enemy only chases what it can actually see. If
+  // this ever passes by accident it is because there are no enemies, so the
+  // count is checked too.
+  {
+    ecs_query_t *query = ecs_query(
+        world, {.terms = {{.id = ecs_id(Position), .inout = EcsIn},
+                          {.id = ecs_id(Brain), .inout = EcsIn},
+                          {.id = ecs_id(Senses), .inout = EcsIn},
+                          {.id = Enemy}}});
+    int checked = 0;
+    ecs_iter_t chase = ecs_query_iter(world, query);
+    while (ecs_query_next(&chase)) {
+      const Position *at = ecs_field(&chase, Position, 0);
+      const Brain *brain = ecs_field(&chase, Brain, 1);
+      const Senses *sense = ecs_field(&chase, Senses, 2);
+      for (int i = 0; i < chase.count; ++i) {
+        checked += 1;
+        if (brain[i].state != AI_CHASE) {
+          continue;
+        }
+        // Chasing means it can see the player, in range and in the open.
+        assert(NavLineOfSight(at[i].value, tracker->position));
+        assert(Vec3Length(Vec3Flat(Vec3Sub(tracker->position, at[i].value))) <= sense[i].sight);
+      }
+    }
+    assert(checked > 0);
+    ecs_query_fini(query);
+  }
+
+  // An enemy that has lost interest and cannot see anything never routes into
+  // a wall. Every step the navigation offers has to be a step it can take.
+  {
+    ecs_query_t *query = ecs_query(
+        world, {.terms = {{.id = ecs_id(Position), .inout = EcsIn}, {.id = Enemy}}});
+    ecs_iter_t walk = ecs_query_iter(world, query);
+    int routed = 0;
+    while (ecs_query_next(&walk)) {
+      const Position *at = ecs_field(&walk, Position, 0);
+      for (int i = 0; i < walk.count; ++i) {
+        Vec3 step;
+        if (!NavDirectionToward(at[i].value, NAV_GOAL_PLAYER, &step)) {
+          continue;
+        }
+        routed += 1;
+        // A step of one tile must land somewhere with a route of its own,
+        // which a wall never has.
+        Vec3 next = Vec3Add(at[i].value, Vec3Scale(step, TILE_SIZE));
+        assert(NavRouteDistance(next, NAV_GOAL_PLAYER) >= 0.0f);
+      }
+    }
+    // At the start of level one the enemies share a region with the player,
+    // so some of them must have a route. Later in the level the survivors are
+    // behind a shut door and correctly have none at all.
+    assert(routed > 0);
+    ecs_query_fini(query);
+  }
+
+  // Being heard pulls them in. An enemy round a corner, alerted to where the
+  // player is, has to close the distance along the route rather than grind
+  // into the wall between the two of them.
+  {
+    Alert *alert = ecs_singleton_get_mut(world, Alert);
+    alert->position = tracker->position;
+    alert->timer = 600.0f; // Long enough that the test is not racing it.
+    alert->active = true;
+
+    ecs_query_t *query = ecs_query(
+        world, {.terms = {{.id = ecs_id(Position), .inout = EcsIn}, {.id = Enemy}}});
+    ecs_iter_t seek = ecs_query_iter(world, query);
+    ecs_entity_t hunter = 0;
+    float startRoute = -1.0f;
+    bool stopped = false;
+    while (!stopped && ecs_query_next(&seek)) {
+      const Position *at = ecs_field(&seek, Position, 0);
+      for (int i = 0; i < seek.count; ++i) {
+        float route = NavRouteDistance(at[i].value, NAV_GOAL_PLAYER);
+        // Pick one that has to go the long way round.
+        if (route > 8.0f && !NavLineOfSight(at[i].value, tracker->position)) {
+          hunter = seek.entities[i];
+          startRoute = route;
+          stopped = true;
+          break;
+        }
+      }
+    }
+    // Only finish an iterator that was abandoned part way. One that ran out
+    // has already finished itself.
+    if (stopped) {
+      ecs_iter_fini(&seek);
+    }
+    ecs_query_fini(query);
+
+    if (hunter != 0) {
+      for (int frame = 0; frame < 600; ++frame) {
+        Alert *keep = ecs_singleton_get_mut(world, Alert);
+        keep->position = tracker->position;
+        keep->timer = 600.0f;
+        keep->active = true;
+        PushInput(world, VEC2_ZERO, false);
+        ecs_progress(world, STEP);
+      }
+      float endRoute = NavRouteDistance(ecs_get(world, hunter, Position)->value, NAV_GOAL_PLAYER);
+      printf("hunter route %.1fm -> %.1fm\n", startRoute, endRoute);
+      assert(endRoute >= 0.0f);
+      assert(endRoute < startRoute);
+    }
+  }
 
   // Shooting an enemy has to pay out in score and leave coins behind.
   int enemiesAtStart = ecs_count(world, Enemy);

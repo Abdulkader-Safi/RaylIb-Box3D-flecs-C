@@ -12,7 +12,7 @@ void ModeSystemRegister(ecs_world_t *world);     // Menus, pausing, level flow.
 void SpawnerSystemRegister(ecs_world_t *world);  // Keep a level populated.
 void PlayerSystemRegister(ecs_world_t *world);   // Drive and aim the player.
 void WeaponSystemRegister(ecs_world_t *world);   // Fire bullets on a cooldown.
-void ChaseSystemRegister(ecs_world_t *world);    // Steer enemies at the player.
+void AiSystemRegister(ecs_world_t *world);       // What enemies notice, and do.
 void BiteSystemRegister(ecs_world_t *world);     // Hurt the player on contact.
 void PickupSystemRegister(ecs_world_t *world);   // Coins, health, powerups, keycard.
 void ExitSystemRegister(ecs_world_t *world);     // Standing on the exit wins.

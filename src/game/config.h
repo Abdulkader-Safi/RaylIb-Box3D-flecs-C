@@ -68,6 +68,36 @@
 
 #define ENEMY_BITE_INTERVAL 0.7f
 
+// What each tier notices, and for how long it keeps caring.
+//
+// Sight needs a clear line as well as the range. Hearing does not: a gunshot
+// carries through a wall, it just does not tell you much beyond roughly where.
+// Memory is how long an enemy keeps hunting after losing the player, which is
+// the difference between shaking someone off and being followed home.
+#define ENEMY_LIGHT_SIGHT 26.0f
+#define ENEMY_LIGHT_HEARING 34.0f
+#define ENEMY_LIGHT_MEMORY 3.0f
+
+#define ENEMY_MEDIUM_SIGHT 30.0f
+#define ENEMY_MEDIUM_HEARING 26.0f
+#define ENEMY_MEDIUM_MEMORY 6.0f
+
+#define ENEMY_HEAVY_SIGHT 20.0f
+#define ENEMY_HEAVY_HEARING 18.0f
+#define ENEMY_HEAVY_MEMORY 14.0f
+
+// The routes are shared, so they are rebuilt on a clock rather than per enemy.
+#define AI_REPATH_INTERVAL 0.2f
+// How long the last thing anyone heard stays worth investigating.
+#define ALERT_SECONDS 8.0f
+// Firing is loud. Walking is not.
+#define WEAPON_NOISE_RANGE 30.0f
+// Close enough that steering straight beats following the grid.
+#define AI_DIRECT_RANGE 3.0f
+// Speed while wandering, as a fraction of the tier's chasing speed.
+#define AI_PATROL_SPEED_SCALE 0.45f
+#define AI_PATROL_REACH 1.5f
+
 #define SPAWNER_INTERVAL 4.0f
 #define SPAWNER_MAX_ALIVE 4
 
