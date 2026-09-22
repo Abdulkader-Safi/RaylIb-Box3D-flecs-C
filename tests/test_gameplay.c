@@ -256,7 +256,28 @@ static bool WalkToTile(ecs_world_t *world, const Level *level, char wanted, bool
   return WalkPath(world, level, path, length, 240);
 }
 
+// Formatting one result into another used to eat the front of it. The label
+// "Resolution" reached the screen as "solution", because the second call wrote
+// into the same buffer the first had returned: it laid "> " over the "Re" and
+// then copied the string it was already standing on. The settings rows did
+// exactly this, which is why only they were wrong.
+static void CheckFormatting(void) {
+  const char *inner = GfxFormat("Resolution    < %s >", "1280 x 720");
+  const char *outer = GfxFormat("%s %s", ">", inner);
+  assert(strstr(outer, "Resolution") != NULL);
+  assert(strstr(outer, "1280 x 720") != NULL);
+  assert(strstr(inner, "Resolution") != NULL);
+
+  // The loan also has to outlive a couple of later calls, or passing one
+  // result into another is luck rather than a rule.
+  const char *first = GfxFormat("first %d", 1);
+  GfxFormat("second %d", 2);
+  GfxFormat("third %d", 3);
+  assert(strstr(first, "first 1") != NULL);
+}
+
 int main(void) {
+  CheckFormatting();
   RandomSeed(20240921); // Spawner stagger has to repeat run to run.
 
   ecs_world_t *world = AppWorldCreate(false);

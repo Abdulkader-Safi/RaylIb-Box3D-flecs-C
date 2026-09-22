@@ -119,11 +119,29 @@ int GfxScreenHeight(void) { return GetScreenHeight(); }
 
 int GfxMeasureText(const char *text, int size) { return MeasureText(text, size); }
 
+// Several buffers, used in turn, rather than one.
+//
+// With a single buffer, formatting a string that contains an earlier result
+// writes into the very memory it is reading from. The copy overwrites its own
+// source and the front of the text disappears: "Resolution" came out as
+// "solution", eaten by the two characters written in front of it.
+//
+// Taking turns means a result survives long enough to be an argument to the
+// next call. It is still a loan, not a keepsake: hold one for more calls than
+// there are buffers and it will be reused underneath you.
+#define GFX_FORMAT_BUFFERS 8
+#define GFX_FORMAT_LENGTH 512
+
 const char *GfxFormat(const char *format, ...) {
-  static char buffer[512];
+  static char buffers[GFX_FORMAT_BUFFERS][GFX_FORMAT_LENGTH];
+  static int next = 0;
+
+  char *buffer = buffers[next];
+  next = (next + 1) % GFX_FORMAT_BUFFERS;
+
   va_list args;
   va_start(args, format);
-  vsnprintf(buffer, sizeof(buffer), format, args);
+  vsnprintf(buffer, GFX_FORMAT_LENGTH, format, args);
   va_end(args);
   return buffer;
 }

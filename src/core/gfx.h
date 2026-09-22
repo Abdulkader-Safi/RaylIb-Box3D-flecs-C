@@ -43,7 +43,9 @@ int GfxScreenWidth(void);
 int GfxScreenHeight(void);
 int GfxMeasureText(const char *text, int size);
 
-// Printf for labels. The returned string is only valid until the next call.
+// Printf for labels. The result is a loan: it stays valid across a handful of
+// further calls, which is enough to pass one into another, but it is reused
+// eventually and is never yours to keep.
 const char *GfxFormat(const char *format, ...);
 
 // Where a point on screen lands on a horizontal plane in the world. This is

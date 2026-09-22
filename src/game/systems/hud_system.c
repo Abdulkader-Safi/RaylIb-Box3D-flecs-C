@@ -6,6 +6,8 @@
 #include "game/config.h"
 #include "game/levels/levels.h"
 #include "game/systems/menu_layout.h"
+
+#include <stdio.h>
 #include "game/systems/systems.h"
 
 
@@ -27,7 +29,11 @@ static void DrawMenuRow(const MenuLayout *layout, int index, int selected, const
     GfxDrawRect((int)row.x, (int)row.y, (int)row.width, (int)row.height, (Color){255, 255, 255, 18});
   }
 
-  const char *text = GfxFormat("%s %s", active ? ">" : " ", label);
+  // Built here rather than by formatting one result into another. The label
+  // is often itself a formatted string, and this row is the last place that
+  // should care where it came from.
+  char text[160];
+  snprintf(text, sizeof(text), "%s %s", active ? ">" : " ", label);
   // Centred inside the row rather than on the screen, so the text always sits
   // in the box that responds to the click.
   int textX = (int)(row.x + (row.width - (float)GfxMeasureText(text, MENU_TEXT_SIZE)) * 0.5f);
