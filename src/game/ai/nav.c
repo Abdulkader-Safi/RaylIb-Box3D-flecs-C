@@ -175,6 +175,54 @@ bool NavDirectionToward(Vec3 from, NavGoal goal, Vec3 *outDirection) {
   return true;
 }
 
+// Follows the same rule the enemies do, one tile at a time, and records where
+// it went. Drawing this is drawing exactly the route they will take.
+int NavRoutePoints(Vec3 from, NavGoal goal, float height, Vec3 *points, int maxPoints) {
+  if (g_level == NULL || maxPoints <= 0) {
+    return 0;
+  }
+
+  int column;
+  int row;
+  WorldToTile(from, &column, &row);
+  if (!InBounds(column, row)) {
+    return 0;
+  }
+
+  uint16_t (*field)[LEVEL_MAX_WIDTH] = g_distance[goal];
+  int written = 0;
+
+  while (written < maxPoints) {
+    uint16_t best = field[row][column];
+    if (best == 0 || best == NAV_UNREACHABLE) {
+      break;
+    }
+
+    int bestColumn = -1;
+    int bestRow = -1;
+    for (int direction = 0; direction < 8; ++direction) {
+      if (!CanStep(column, row, direction)) {
+        continue;
+      }
+      int nextColumn = column + STEP_COLUMN[direction];
+      int nextRow = row + STEP_ROW[direction];
+      if (field[nextRow][nextColumn] < best) {
+        best = field[nextRow][nextColumn];
+        bestColumn = nextColumn;
+        bestRow = nextRow;
+      }
+    }
+    if (bestColumn < 0) {
+      break;
+    }
+
+    column = bestColumn;
+    row = bestRow;
+    points[written++] = LevelTileToWorld(g_level, column, row, height);
+  }
+  return written;
+}
+
 float NavRouteDistance(Vec3 from, NavGoal goal) {
   if (g_level == NULL) {
     return -1.0f;

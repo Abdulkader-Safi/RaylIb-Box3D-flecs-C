@@ -80,6 +80,7 @@ set(GAME_SOURCES
     src/game/systems/ai_system.c
     src/game/systems/combat_system.c
     src/game/systems/death_system.c
+    src/game/systems/debug_system.c
     src/game/systems/door_system.c
     src/game/systems/exit_system.c
     src/game/systems/hud_system.c

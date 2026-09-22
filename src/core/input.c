@@ -47,6 +47,7 @@ static void InputPollSystem(ecs_iter_t *it) {
   input->restart = IsKeyPressed(KEY_R);
 
   input->pause = IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_P);
+  input->toggleDebug = IsKeyPressed(KEY_F1);
   input->confirm = IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_KP_ENTER);
   input->menuUp = IsKeyPressed(KEY_W) || IsKeyPressed(KEY_UP);
   input->menuDown = IsKeyPressed(KEY_S) || IsKeyPressed(KEY_DOWN);

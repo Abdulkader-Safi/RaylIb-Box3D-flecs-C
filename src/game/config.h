@@ -74,16 +74,19 @@
 // carries through a wall, it just does not tell you much beyond roughly where.
 // Memory is how long an enemy keeps hunting after losing the player, which is
 // the difference between shaking someone off and being followed home.
-#define ENEMY_LIGHT_SIGHT 26.0f
-#define ENEMY_LIGHT_HEARING 34.0f
+// These are in metres, against rooms that are ten to twenty metres across.
+// Any bigger and an enemy can see the length of the level, which is the thing
+// this was meant to stop.
+#define ENEMY_LIGHT_SIGHT 16.0f
+#define ENEMY_LIGHT_HEARING 22.0f
 #define ENEMY_LIGHT_MEMORY 3.0f
 
-#define ENEMY_MEDIUM_SIGHT 30.0f
-#define ENEMY_MEDIUM_HEARING 26.0f
+#define ENEMY_MEDIUM_SIGHT 20.0f
+#define ENEMY_MEDIUM_HEARING 16.0f
 #define ENEMY_MEDIUM_MEMORY 6.0f
 
-#define ENEMY_HEAVY_SIGHT 20.0f
-#define ENEMY_HEAVY_HEARING 18.0f
+#define ENEMY_HEAVY_SIGHT 13.0f
+#define ENEMY_HEAVY_HEARING 11.0f
 #define ENEMY_HEAVY_MEMORY 14.0f
 
 // The routes are shared, so they are rebuilt on a clock rather than per enemy.
@@ -91,7 +94,7 @@
 // How long the last thing anyone heard stays worth investigating.
 #define ALERT_SECONDS 8.0f
 // Firing is loud. Walking is not.
-#define WEAPON_NOISE_RANGE 30.0f
+#define WEAPON_NOISE_RANGE 22.0f
 // Close enough that steering straight beats following the grid.
 #define AI_DIRECT_RANGE 3.0f
 // Speed while wandering, as a fraction of the tier's chasing speed.
@@ -147,6 +150,21 @@
 #define COLOR_COVER ((Color){70, 80, 104, 255})
 #define COLOR_SPAWNER ((Color){210, 80, 60, 255})
 #define COLOR_MENU_DIM ((Color){10, 12, 18, 225})
+
+// The debug view. One colour per state, so a glance at the floor says what
+// every enemy currently thinks is going on.
+#define COLOR_AI_GUARD ((Color){110, 120, 140, 130})
+#define COLOR_AI_PATROL ((Color){120, 190, 255, 150})
+#define COLOR_AI_INVESTIGATE ((Color){255, 199, 64, 190})
+#define COLOR_AI_CHASE ((Color){235, 84, 84, 220})
+#define COLOR_AI_SIGHT ((Color){90, 200, 255, 60})
+#define COLOR_AI_HEARING ((Color){150, 110, 220, 40})
+#define COLOR_AI_SEEN ((Color){120, 255, 150, 230})
+#define COLOR_AI_ALERT ((Color){255, 140, 60, 170})
+
+#define DEBUG_ROUTE_HEIGHT 0.30f
+#define DEBUG_RANGE_HEIGHT 0.08f
+#define DEBUG_MAX_ROUTE_POINTS 64
 #define COLOR_ENEMY_HURT ((Color){245, 220, 220, 255})
 #define COLOR_BULLET ((Color){255, 214, 102, 255})
 #define COLOR_AIM ((Color){255, 255, 255, 110})

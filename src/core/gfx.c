@@ -69,6 +69,11 @@ void GfxDrawCapsule(Vec3 bottom, Vec3 top, float radius, Color color) {
 
 void GfxDrawLine(Vec3 from, Vec3 to, Color color) { DrawLine3D(from, to, color); }
 
+void GfxDrawGroundCircle(Vec3 centre, float radius, Color color) {
+  // DrawCircle3D stands a circle upright, so it is tipped onto its back.
+  DrawCircle3D(centre, radius, (Vector3){1.0f, 0.0f, 0.0f}, 90.0f, color);
+}
+
 void GfxDrawGrid(int slices, float spacing, float height, Color color) {
   // raylib's DrawGrid is always at y = 0 and always its own colour, so the
   // lines are drawn here instead.

@@ -23,6 +23,9 @@ void GfxDrawLine(Vec3 from, Vec3 to, Color color);
 // same pixels and flicker as the camera moves.
 void GfxDrawGrid(int slices, float spacing, float height, Color color);
 
+// A ring lying flat on the ground, for showing ranges.
+void GfxDrawGroundCircle(Vec3 centre, float radius, Color color);
+
 // 2D, for systems in PhaseDrawUI.
 void GfxDrawText(const char *text, int x, int y, int size, Color color);
 void GfxDrawTextCentered(const char *text, int y, int size, Color color);

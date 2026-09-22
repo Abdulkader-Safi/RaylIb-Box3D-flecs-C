@@ -42,6 +42,7 @@ typedef struct Input {
   bool confirm;
   bool click;      // Left button, the frame it went down.
   bool mouseMoved; // So hovering only steals the menu highlight when it moves.
+  bool toggleDebug;
   bool menuUp;
   bool menuDown;
   bool menuLeft;

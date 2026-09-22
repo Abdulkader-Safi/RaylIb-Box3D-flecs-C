@@ -22,5 +22,6 @@ void DeathSystemRegister(ecs_world_t *world);    // Pay out and remove the dead.
 void CameraSystemRegister(ecs_world_t *world);   // Follow the player.
 void RenderSystemRegister(ecs_world_t *world);   // Draw the world.
 void HudSystemRegister(ecs_world_t *world);      // Draw the overlay and menus.
+void DebugSystemRegister(ecs_world_t *world);    // Show the AI its working (F1).
 
 #endif // GAME_SYSTEMS_H

@@ -34,6 +34,7 @@ void GameRegister(ecs_world_t *world) {
   CameraSystemRegister(world);
   RenderSystemRegister(world);
   HudSystemRegister(world);
+  DebugSystemRegister(world);
 
   // The title screen is the starting state, with the first level standing
   // behind it so there is something to look at.

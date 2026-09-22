@@ -35,6 +35,10 @@ bool NavDirectionToward(Vec3 from, NavGoal goal, Vec3 *outDirection);
 // does not, because it is low.
 bool NavLineOfSight(Vec3 from, Vec3 to);
 
+// Walks the route out into world points, for drawing it. Returns how many
+// were written. The first point is the next tile, not where you are standing.
+int NavRoutePoints(Vec3 from, NavGoal goal, float height, Vec3 *points, int maxPoints);
+
 // How far the goal is by the route rather than through the walls, in metres.
 // Negative when it cannot be reached.
 float NavRouteDistance(Vec3 from, NavGoal goal);

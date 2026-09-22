@@ -24,6 +24,7 @@ exit. Kill things for coins, and pick up what they drop.
 | Pause           | Escape or P          | Start       |
 | Menus           | Click, or W/S, Enter | D-pad, A    |
 | Restart level   | R                    |             |
+| AI view         | F1                   |             |
 
 Menus take the mouse: hovering highlights a row and clicking takes it. On the
 settings screen, clicking the left or right half of a row does what the left
@@ -159,6 +160,24 @@ Physics runs on a fixed 1/60 step with a leftover accumulator, so behaviour does
 not drift with frame rate. Contact events describe only the step that just ran,
 so they are drained inside the stepping loop. Draining after it would lose every
 hit that happened during a catch-up step.
+
+## Seeing what the enemies are doing
+
+F1 draws the AI's working on the floor. The route is not an illustration of the
+route: it is walked with the same function the enemies step along, so if the
+line goes through a wall then so do they.
+
+| What you see          | What it means                                   |
+| --------------------- | ----------------------------------------------- |
+| Coloured line on floor| The route it is taking, coloured by state        |
+| Green line to you     | It can see you right now, in range and in the open |
+| Inner ring            | How far it can see                               |
+| Outer ring            | How far it can hear, which goes through walls    |
+| Orange post           | Where the room last heard something              |
+| Stub above an enemy   | Its state, in the same colours                   |
+
+Rings are only drawn for enemies close enough to notice you, or the far side of
+the level fills up with arcs belonging to something asleep in a corner.
 
 ## What the enemies know
 

@@ -165,8 +165,22 @@ static void DrawPlayfieldHud(ecs_world_t *world, const GameState *state) {
     }
   }
 
-  GfxDrawText("WASD move   .   Mouse aim   .   Click fire   .   Esc pause   .   R restart level",
+  GfxDrawText("WASD move  .  Mouse aim  .  Click fire  .  Esc pause  .  R restart  .  F1 AI view",
               24, GfxScreenHeight() - 34, 18, GRAY);
+
+  // The legend only earns its space while the view it explains is on.
+  if (ecs_singleton_get(world, DebugView)->showAi) {
+    int x = GfxScreenWidth() - 250;
+    int y = 96;
+    GfxDrawText("AI VIEW", x, y, 20, RAYWHITE);
+    GfxDrawText("guard", x, y + 28, 18, COLOR_AI_GUARD);
+    GfxDrawText("patrol", x, y + 50, 18, COLOR_AI_PATROL);
+    GfxDrawText("investigating", x, y + 72, 18, COLOR_AI_INVESTIGATE);
+    GfxDrawText("chasing", x, y + 94, 18, COLOR_AI_CHASE);
+    GfxDrawText("can see you", x, y + 122, 18, COLOR_AI_SEEN);
+    GfxDrawText("inner ring: sight", x, y + 144, 16, COLOR_AI_SIGHT);
+    GfxDrawText("outer ring: hearing", x, y + 164, 16, COLOR_AI_HEARING);
+  }
 }
 
 static void HudSystem(ecs_iter_t *it) {

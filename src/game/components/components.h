@@ -102,6 +102,11 @@ typedef struct Brain {
   bool wandering;
 } Brain;
 
+// Whether the AI is being shown its working. Off by default, F1 toggles it.
+typedef struct DebugView {
+  bool showAi;
+} DebugView;
+
 // The last thing anything heard, shared by every enemy. One gunshot should
 // pull the whole room, not just whoever happened to be looking.
 typedef struct Alert {
@@ -215,6 +220,7 @@ typedef struct GameState {
 extern ECS_COMPONENT_DECLARE(Senses);
 extern ECS_COMPONENT_DECLARE(Brain);
 extern ECS_COMPONENT_DECLARE(Alert);
+extern ECS_COMPONENT_DECLARE(DebugView);
 extern ECS_COMPONENT_DECLARE(Loot);
 extern ECS_COMPONENT_DECLARE(Pickup);
 extern ECS_COMPONENT_DECLARE(Powerups);

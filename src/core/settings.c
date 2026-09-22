@@ -54,6 +54,15 @@ static void ApplyFullscreen(bool wanted) {
   if (!IsWindowReady() || IsWindowFullscreen() == wanted) {
     return;
   }
+
+  if (wanted) {
+    // raylib asks the display for a video mode the size of the window, so a
+    // 1280 x 720 window puts a 16:9 mode on a 16:10 panel and the display
+    // stretches it to fit. Matching the monitor first means the mode it asks
+    // for is the one already running, and nothing is rescaled.
+    int monitor = GetCurrentMonitor();
+    SetWindowSize(GetMonitorWidth(monitor), GetMonitorHeight(monitor));
+  }
   ToggleFullscreen();
 }
 
